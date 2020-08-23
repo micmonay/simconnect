@@ -5,6 +5,16 @@ type SimVar struct {
 	Name     string
 	Units    string
 	Settable bool
+	data     *[]byte
+}
+
+func (s SimVar) GetDatumType() uint32 {
+	switch s.Units {
+	case "Bool":
+		return SIMCONNECT_DATATYPE_INT32
+	default:
+		return SIMCONNECT_DATATYPE_FLOAT64
+	}
 }
 
 // SimVarAutopilotPitchHold Simvar

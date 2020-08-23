@@ -3,6 +3,45 @@ package simconnect
 //Divers
 const (
 	MAX_PATH = 260
+
+	SIMCONNECT_UNUSED         = DWORD_MAX // special value to indicate unused event, ID
+	SIMCONNECT_OBJECT_ID_USER = 0         // proxy value for User vehicle ObjectID
+
+	SIMCONNECT_CAMERA_IGNORE_FIELD = 3.402823466e38 //Used to tell the Camera API to NOT modify the value in this part of the argument.
+
+	SIMCONNECT_CLIENTDATA_MAX_SIZE = 8192 // maximum value for SimConnect_CreateClientData dwSize parameter
+
+	// Notification Group priority values
+	SIMCONNECT_GROUP_PRIORITY_HIGHEST          = 1          // highest priority
+	SIMCONNECT_GROUP_PRIORITY_HIGHEST_MASKABLE = 10000000   // highest priority that allows events to be masked
+	SIMCONNECT_GROUP_PRIORITY_STANDARD         = 1900000000 // standard priority
+	SIMCONNECT_GROUP_PRIORITY_DEFAULT          = 2000000000 // default priority
+	SIMCONNECT_GROUP_PRIORITY_LOWEST           = 4000000000 // priorities lower than this will be ignored
+
+	//Weather observations Metar strings
+	MAX_METAR_LENGTH = 2000
+
+	// Maximum thermal size is 100 km.
+	MAX_THERMAL_SIZE = 100000
+	MAX_THERMAL_RATE = 1000
+
+	// SIMCONNECT_DATA_INITPOSITION.Airspeed
+	INITPOSITION_AIRSPEED_CRUISE = -1 // aircraft's cruise airspeed
+	INITPOSITION_AIRSPEED_KEEP   = -2 // keep current airspeed
+
+	// AddToClientDataDefinition dwSizeOrType parameter type values
+	SIMCONNECT_CLIENTDATATYPE_INT8    = -1 //  8-bit integer number
+	SIMCONNECT_CLIENTDATATYPE_INT16   = -2 // 16-bit integer number
+	SIMCONNECT_CLIENTDATATYPE_INT32   = -3 // 32-bit integer number
+	SIMCONNECT_CLIENTDATATYPE_INT64   = -4 // 64-bit integer number
+	SIMCONNECT_CLIENTDATATYPE_FLOAT32 = -5 // 32-bit floating-point number (float)
+	SIMCONNECT_CLIENTDATATYPE_FLOAT64 = -6 // 64-bit floating-point number (double)
+
+	// AddToClientDataDefinition dwOffset parameter special values
+	SIMCONNECT_CLIENTDATAOFFSET_AUTO = -1 // automatically compute offset of the ClientData variable
+
+	// Open ConfigIndex parameter special value
+	SIMCONNECT_OPEN_CONFIGINDEX_LOCAL = -1 // ignore SimConnect.cfg settings, and force local connection
 )
 
 const (
