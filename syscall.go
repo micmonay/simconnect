@@ -379,722 +379,577 @@ func NewSyscallSC() (*SyscallSC, error) {
 	return syscallSC, nil
 }
 func (syscallSC *SyscallSC) MapClientEventToSimEvent(hSimConnect uintptr, EventID uintptr, EventName uintptr) error {
-	r1, _, err := syscallSC.pMapClientEventToSimEvent.Call(hSimConnect, EventID, EventName)
+	r1, _, _ := syscallSC.pMapClientEventToSimEvent.Call(hSimConnect, EventID, EventName)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) TransmitClientEvent(hSimConnect uintptr, ObjectID uintptr, EventID uintptr, dwData uintptr, GroupID uintptr, Flags uintptr) error {
-	r1, _, err := syscallSC.pTransmitClientEvent.Call(hSimConnect, ObjectID, EventID, dwData, GroupID, Flags)
+	r1, _, _ := syscallSC.pTransmitClientEvent.Call(hSimConnect, ObjectID, EventID, dwData, GroupID, Flags)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetSystemEventState(hSimConnect uintptr, EventID uintptr, dwState uintptr) error {
-	r1, _, err := syscallSC.pSetSystemEventState.Call(hSimConnect, EventID, dwState)
+	r1, _, _ := syscallSC.pSetSystemEventState.Call(hSimConnect, EventID, dwState)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AddClientEventToNotificationGroup(hSimConnect uintptr, GroupID uintptr, EventID uintptr, bMaskable uintptr) error {
-	r1, _, err := syscallSC.pAddClientEventToNotificationGroup.Call(hSimConnect, GroupID, EventID, bMaskable)
+	r1, _, _ := syscallSC.pAddClientEventToNotificationGroup.Call(hSimConnect, GroupID, EventID, bMaskable)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RemoveClientEvent(hSimConnect uintptr, GroupID uintptr, EventID uintptr) error {
-	r1, _, err := syscallSC.pRemoveClientEvent.Call(hSimConnect, GroupID, EventID)
+	r1, _, _ := syscallSC.pRemoveClientEvent.Call(hSimConnect, GroupID, EventID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetNotificationGroupPriority(hSimConnect uintptr, GroupID uintptr, uPriority uintptr) error {
-	r1, _, err := syscallSC.pSetNotificationGroupPriority.Call(hSimConnect, GroupID, uPriority)
+	r1, _, _ := syscallSC.pSetNotificationGroupPriority.Call(hSimConnect, GroupID, uPriority)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) ClearNotificationGroup(hSimConnect uintptr, GroupID uintptr) error {
-	r1, _, err := syscallSC.pClearNotificationGroup.Call(hSimConnect, GroupID)
+	r1, _, _ := syscallSC.pClearNotificationGroup.Call(hSimConnect, GroupID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestNotificationGroup(hSimConnect uintptr, GroupID uintptr, dwReserved uintptr, Flags uintptr) error {
-	r1, _, err := syscallSC.pRequestNotificationGroup.Call(hSimConnect, GroupID, dwReserved, Flags)
+	r1, _, _ := syscallSC.pRequestNotificationGroup.Call(hSimConnect, GroupID, dwReserved, Flags)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AddToDataDefinition(hSimConnect uintptr, DefineID uintptr, DatumName uintptr, UnitsName uintptr, DatumType uintptr, fEpsilon uintptr, DatumID uintptr) error {
-	r1, _, err := syscallSC.pAddToDataDefinition.Call(hSimConnect, DefineID, DatumName, UnitsName, DatumType, fEpsilon, DatumID)
+	r1, _, _ := syscallSC.pAddToDataDefinition.Call(hSimConnect, DefineID, DatumName, UnitsName, DatumType, fEpsilon, DatumID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) ClearDataDefinition(hSimConnect uintptr, DefineID uintptr) error {
-	r1, _, err := syscallSC.pClearDataDefinition.Call(hSimConnect, DefineID)
+	r1, _, _ := syscallSC.pClearDataDefinition.Call(hSimConnect, DefineID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestDataOnSimObject(hSimConnect uintptr, RequestID uintptr, DefineID uintptr, ObjectID uintptr, Period uintptr, Flags uintptr, origin uintptr, interval uintptr, limit uintptr) error {
-	r1, _, err := syscallSC.pRequestDataOnSimObject.Call(hSimConnect, RequestID, DefineID, ObjectID, Period, Flags, origin, interval, limit)
+	r1, _, _ := syscallSC.pRequestDataOnSimObject.Call(hSimConnect, RequestID, DefineID, ObjectID, Period, Flags, origin, interval, limit)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestDataOnSimObjectType(hSimConnect uintptr, RequestID uintptr, DefineID uintptr, dwRadiusMeters uintptr, t uintptr) error {
-	r1, _, err := syscallSC.pRequestDataOnSimObjectType.Call(hSimConnect, RequestID, DefineID, dwRadiusMeters, t)
+	r1, _, _ := syscallSC.pRequestDataOnSimObjectType.Call(hSimConnect, RequestID, DefineID, dwRadiusMeters, t)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetDataOnSimObject(hSimConnect uintptr, DefineID uintptr, ObjectID uintptr, Flags uintptr, ArrayCount uintptr, cbUnitSize uintptr, pDataSet uintptr) error {
-	r1, _, err := syscallSC.pSetDataOnSimObject.Call(hSimConnect, DefineID, ObjectID, Flags, ArrayCount, cbUnitSize, pDataSet)
+	r1, _, _ := syscallSC.pSetDataOnSimObject.Call(hSimConnect, DefineID, ObjectID, Flags, ArrayCount, cbUnitSize, pDataSet)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MapInputEventToClientEvent(hSimConnect uintptr, GroupID uintptr, szInputDefinition uintptr, DownEventID uintptr, DownValue uintptr, UpEventID uintptr, UpValue uintptr, bMaskable uintptr) error {
-	r1, _, err := syscallSC.pMapInputEventToClientEvent.Call(hSimConnect, GroupID, szInputDefinition, DownEventID, DownValue, UpEventID, UpValue, bMaskable)
+	r1, _, _ := syscallSC.pMapInputEventToClientEvent.Call(hSimConnect, GroupID, szInputDefinition, DownEventID, DownValue, UpEventID, UpValue, bMaskable)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetInputGroupPriority(hSimConnect uintptr, GroupID uintptr, uPriority uintptr) error {
-	r1, _, err := syscallSC.pSetInputGroupPriority.Call(hSimConnect, GroupID, uPriority)
+	r1, _, _ := syscallSC.pSetInputGroupPriority.Call(hSimConnect, GroupID, uPriority)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RemoveInputEvent(hSimConnect uintptr, GroupID uintptr, szInputDefinition uintptr) error {
-	r1, _, err := syscallSC.pRemoveInputEvent.Call(hSimConnect, GroupID, szInputDefinition)
+	r1, _, _ := syscallSC.pRemoveInputEvent.Call(hSimConnect, GroupID, szInputDefinition)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) ClearInputGroup(hSimConnect uintptr, GroupID uintptr) error {
-	r1, _, err := syscallSC.pClearInputGroup.Call(hSimConnect, GroupID)
+	r1, _, _ := syscallSC.pClearInputGroup.Call(hSimConnect, GroupID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetInputGroupState(hSimConnect uintptr, GroupID uintptr, dwState uintptr) error {
-	r1, _, err := syscallSC.pSetInputGroupState.Call(hSimConnect, GroupID, dwState)
+	r1, _, _ := syscallSC.pSetInputGroupState.Call(hSimConnect, GroupID, dwState)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestReservedKey(hSimConnect uintptr, EventID uintptr, szKeyChoice1 uintptr, szKeyChoice2 uintptr, szKeyChoice3 uintptr) error {
-	r1, _, err := syscallSC.pRequestReservedKey.Call(hSimConnect, EventID, szKeyChoice1, szKeyChoice2, szKeyChoice3)
+	r1, _, _ := syscallSC.pRequestReservedKey.Call(hSimConnect, EventID, szKeyChoice1, szKeyChoice2, szKeyChoice3)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SubscribeToSystemEvent(hSimConnect uintptr, EventID uintptr, SystemEventName uintptr) error {
-	r1, _, err := syscallSC.pSubscribeToSystemEvent.Call(hSimConnect, EventID, SystemEventName)
+	r1, _, _ := syscallSC.pSubscribeToSystemEvent.Call(hSimConnect, EventID, SystemEventName)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) UnsubscribeFromSystemEvent(hSimConnect uintptr, EventID uintptr) error {
-	r1, _, err := syscallSC.pUnsubscribeFromSystemEvent.Call(hSimConnect, EventID)
+	r1, _, _ := syscallSC.pUnsubscribeFromSystemEvent.Call(hSimConnect, EventID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRequestInterpolatedObservation(hSimConnect uintptr, RequestID uintptr, lat uintptr, lon uintptr, alt uintptr) error {
-	r1, _, err := syscallSC.pWeatherRequestInterpolatedObservation.Call(hSimConnect, RequestID, lat, lon, alt)
+	r1, _, _ := syscallSC.pWeatherRequestInterpolatedObservation.Call(hSimConnect, RequestID, lat, lon, alt)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRequestObservationAtStation(hSimConnect uintptr, RequestID uintptr, szICAO uintptr) error {
-	r1, _, err := syscallSC.pWeatherRequestObservationAtStation.Call(hSimConnect, RequestID, szICAO)
+	r1, _, _ := syscallSC.pWeatherRequestObservationAtStation.Call(hSimConnect, RequestID, szICAO)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRequestObservationAtNearestStation(hSimConnect uintptr, RequestID uintptr, lat uintptr, lon uintptr) error {
-	r1, _, err := syscallSC.pWeatherRequestObservationAtNearestStation.Call(hSimConnect, RequestID, lat, lon)
+	r1, _, _ := syscallSC.pWeatherRequestObservationAtNearestStation.Call(hSimConnect, RequestID, lat, lon)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherCreateStation(hSimConnect uintptr, RequestID uintptr, szICAO uintptr, szName uintptr, lat uintptr, lon uintptr, alt uintptr) error {
-	r1, _, err := syscallSC.pWeatherCreateStation.Call(hSimConnect, RequestID, szICAO, szName, lat, lon, alt)
+	r1, _, _ := syscallSC.pWeatherCreateStation.Call(hSimConnect, RequestID, szICAO, szName, lat, lon, alt)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRemoveStation(hSimConnect uintptr, RequestID uintptr, szICAO uintptr) error {
-	r1, _, err := syscallSC.pWeatherRemoveStation.Call(hSimConnect, RequestID, szICAO)
+	r1, _, _ := syscallSC.pWeatherRemoveStation.Call(hSimConnect, RequestID, szICAO)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetObservation(hSimConnect uintptr, Seconds uintptr, szMETAR uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetObservation.Call(hSimConnect, Seconds, szMETAR)
+	r1, _, _ := syscallSC.pWeatherSetObservation.Call(hSimConnect, Seconds, szMETAR)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetModeServer(hSimConnect uintptr, dwPort uintptr, dwSeconds uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetModeServer.Call(hSimConnect, dwPort, dwSeconds)
+	r1, _, _ := syscallSC.pWeatherSetModeServer.Call(hSimConnect, dwPort, dwSeconds)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetModeTheme(hSimConnect uintptr, szThemeName uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetModeTheme.Call(hSimConnect, szThemeName)
+	r1, _, _ := syscallSC.pWeatherSetModeTheme.Call(hSimConnect, szThemeName)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetModeGlobal(hSimConnect uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetModeGlobal.Call(hSimConnect)
+	r1, _, _ := syscallSC.pWeatherSetModeGlobal.Call(hSimConnect)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetModeCustom(hSimConnect uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetModeCustom.Call(hSimConnect)
+	r1, _, _ := syscallSC.pWeatherSetModeCustom.Call(hSimConnect)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherSetDynamicUpdateRate(hSimConnect uintptr, dwRate uintptr) error {
-	r1, _, err := syscallSC.pWeatherSetDynamicUpdateRate.Call(hSimConnect, dwRate)
+	r1, _, _ := syscallSC.pWeatherSetDynamicUpdateRate.Call(hSimConnect, dwRate)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRequestCloudState(hSimConnect uintptr, RequestID uintptr, minLat uintptr, minLon uintptr, minAlt uintptr, maxLat uintptr, maxLon uintptr, maxAlt uintptr, dwFlags uintptr) error {
-	r1, _, err := syscallSC.pWeatherRequestCloudState.Call(hSimConnect, RequestID, minLat, minLon, minAlt, maxLat, maxLon, maxAlt, dwFlags)
+	r1, _, _ := syscallSC.pWeatherRequestCloudState.Call(hSimConnect, RequestID, minLat, minLon, minAlt, maxLat, maxLon, maxAlt, dwFlags)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherCreateThermal(hSimConnect uintptr, RequestID uintptr, lat uintptr, lon uintptr, alt uintptr, radius uintptr, height uintptr, coreRate uintptr, coreTurbulence uintptr, sinkRate uintptr, sinkTurbulence uintptr, coreSize uintptr, coreTransitionSize uintptr, sinkLayerSize uintptr, sinkTransitionSize uintptr) error {
-	r1, _, err := syscallSC.pWeatherCreateThermal.Call(hSimConnect, RequestID, lat, lon, alt, radius, height, coreRate, coreTurbulence, sinkRate, sinkTurbulence, coreSize, coreTransitionSize, sinkLayerSize, sinkTransitionSize)
+	r1, _, _ := syscallSC.pWeatherCreateThermal.Call(hSimConnect, RequestID, lat, lon, alt, radius, height, coreRate, coreTurbulence, sinkRate, sinkTurbulence, coreSize, coreTransitionSize, sinkLayerSize, sinkTransitionSize)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) WeatherRemoveThermal(hSimConnect uintptr, ObjectID uintptr) error {
-	r1, _, err := syscallSC.pWeatherRemoveThermal.Call(hSimConnect, ObjectID)
+	r1, _, _ := syscallSC.pWeatherRemoveThermal.Call(hSimConnect, ObjectID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AICreateParkedATCAircraft(hSimConnect uintptr, szContainerTitle uintptr, szTailNumber uintptr, szAirportID uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAICreateParkedATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, szAirportID, RequestID)
+	r1, _, _ := syscallSC.pAICreateParkedATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, szAirportID, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AICreateEnrouteATCAircraft(hSimConnect uintptr, szContainerTitle uintptr, szTailNumber uintptr, iFlightNumber uintptr, szFlightPlanPath uintptr, dFlightPlanPosition uintptr, bTouchAndGo uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAICreateEnrouteATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, iFlightNumber, szFlightPlanPath, dFlightPlanPosition, bTouchAndGo, RequestID)
+	r1, _, _ := syscallSC.pAICreateEnrouteATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, iFlightNumber, szFlightPlanPath, dFlightPlanPosition, bTouchAndGo, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AICreateNonATCAircraft(hSimConnect uintptr, szContainerTitle uintptr, szTailNumber uintptr, InitPos uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAICreateNonATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, InitPos, RequestID)
+	r1, _, _ := syscallSC.pAICreateNonATCAircraft.Call(hSimConnect, szContainerTitle, szTailNumber, InitPos, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AICreateSimulatedObject(hSimConnect uintptr, szContainerTitle uintptr, InitPos uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAICreateSimulatedObject.Call(hSimConnect, szContainerTitle, InitPos, RequestID)
+	r1, _, _ := syscallSC.pAICreateSimulatedObject.Call(hSimConnect, szContainerTitle, InitPos, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AIReleaseControl(hSimConnect uintptr, ObjectID uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAIReleaseControl.Call(hSimConnect, ObjectID, RequestID)
+	r1, _, _ := syscallSC.pAIReleaseControl.Call(hSimConnect, ObjectID, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AIRemoveObject(hSimConnect uintptr, ObjectID uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAIRemoveObject.Call(hSimConnect, ObjectID, RequestID)
+	r1, _, _ := syscallSC.pAIRemoveObject.Call(hSimConnect, ObjectID, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AISetAircraftFlightPlan(hSimConnect uintptr, ObjectID uintptr, szFlightPlanPath uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pAISetAircraftFlightPlan.Call(hSimConnect, ObjectID, szFlightPlanPath, RequestID)
+	r1, _, _ := syscallSC.pAISetAircraftFlightPlan.Call(hSimConnect, ObjectID, szFlightPlanPath, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) ExecuteMissionAction(hSimConnect uintptr, guidInstanceId uintptr) error {
-	r1, _, err := syscallSC.pExecuteMissionAction.Call(hSimConnect, guidInstanceId)
+	r1, _, _ := syscallSC.pExecuteMissionAction.Call(hSimConnect, guidInstanceId)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) CompleteCustomMissionAction(hSimConnect uintptr, guidInstanceId uintptr) error {
-	r1, _, err := syscallSC.pCompleteCustomMissionAction.Call(hSimConnect, guidInstanceId)
+	r1, _, _ := syscallSC.pCompleteCustomMissionAction.Call(hSimConnect, guidInstanceId)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) Close(hSimConnect uintptr) error {
-	r1, _, err := syscallSC.pClose.Call(hSimConnect)
+	r1, _, _ := syscallSC.pClose.Call(hSimConnect)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RetrieveString(pData uintptr, cbData uintptr, pStringV uintptr, pszString uintptr, pcbString uintptr) error {
-	r1, _, err := syscallSC.pRetrieveString.Call(pData, cbData, pStringV, pszString, pcbString)
+	r1, _, _ := syscallSC.pRetrieveString.Call(pData, cbData, pStringV, pszString, pcbString)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) GetLastSentPacketID(hSimConnect uintptr, pdwError uintptr) error {
-	r1, _, err := syscallSC.pGetLastSentPacketID.Call(hSimConnect, pdwError)
+	r1, _, _ := syscallSC.pGetLastSentPacketID.Call(hSimConnect, pdwError)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) Open(phSimConnect uintptr, szName uintptr, hWnd uintptr, UserEventWin uintptr, hEventHandle uintptr, ConfigIndex uintptr) error {
-	r1, _, err := syscallSC.pOpen.Call(phSimConnect, szName, hWnd, UserEventWin, hEventHandle, ConfigIndex)
+	r1, _, _ := syscallSC.pOpen.Call(phSimConnect, szName, hWnd, UserEventWin, hEventHandle, ConfigIndex)
 	if r1 != 0 {
 		return errors.New("r1 error")
-	}
-	if err != nil {
-		return err
 	}
 	return nil
 }
 func (syscallSC *SyscallSC) CallDispatch(hSimConnect uintptr, pfcnDispatch uintptr, pContext uintptr) error {
-	r1, _, err := syscallSC.pCallDispatch.Call(hSimConnect, pfcnDispatch, pContext)
+	r1, _, _ := syscallSC.pCallDispatch.Call(hSimConnect, pfcnDispatch, pContext)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) GetNextDispatch(hSimConnect uintptr, ppData uintptr, pcbData uintptr) error {
-	r1, _, err := syscallSC.pGetNextDispatch.Call(hSimConnect, ppData, pcbData)
+	r1, _, _ := syscallSC.pGetNextDispatch.Call(hSimConnect, ppData, pcbData)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestResponseTimes(hSimConnect uintptr, nCount uintptr, fElapsedSeconds uintptr) error {
-	r1, _, err := syscallSC.pRequestResponseTimes.Call(hSimConnect, nCount, fElapsedSeconds)
+	r1, _, _ := syscallSC.pRequestResponseTimes.Call(hSimConnect, nCount, fElapsedSeconds)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) InsertString(pDest uintptr, cbDest uintptr, ppEnd uintptr, pcbStringV uintptr, pSource uintptr) error {
-	r1, _, err := syscallSC.pInsertString.Call(pDest, cbDest, ppEnd, pcbStringV, pSource)
+	r1, _, _ := syscallSC.pInsertString.Call(pDest, cbDest, ppEnd, pcbStringV, pSource)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) CameraSetRelative6DOF(hSimConnect uintptr, fDeltaX uintptr, fDeltaY uintptr, fDeltaZ uintptr, fPitchDeg uintptr, fBankDeg uintptr, fHeadingDeg uintptr) error {
-	r1, _, err := syscallSC.pCameraSetRelative6DOF.Call(hSimConnect, fDeltaX, fDeltaY, fDeltaZ, fPitchDeg, fBankDeg, fHeadingDeg)
+	r1, _, _ := syscallSC.pCameraSetRelative6DOF.Call(hSimConnect, fDeltaX, fDeltaY, fDeltaZ, fPitchDeg, fBankDeg, fHeadingDeg)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MenuAddItem(hSimConnect uintptr, szMenuItem uintptr, MenuEventID uintptr, dwData uintptr) error {
-	r1, _, err := syscallSC.pMenuAddItem.Call(hSimConnect, szMenuItem, MenuEventID, dwData)
+	r1, _, _ := syscallSC.pMenuAddItem.Call(hSimConnect, szMenuItem, MenuEventID, dwData)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MenuDeleteItem(hSimConnect uintptr, MenuEventID uintptr) error {
-	r1, _, err := syscallSC.pMenuDeleteItem.Call(hSimConnect, MenuEventID)
+	r1, _, _ := syscallSC.pMenuDeleteItem.Call(hSimConnect, MenuEventID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MenuAddSubItem(hSimConnect uintptr, MenuEventID uintptr, szMenuItem uintptr, SubMenuEventID uintptr, dwData uintptr) error {
-	r1, _, err := syscallSC.pMenuAddSubItem.Call(hSimConnect, MenuEventID, szMenuItem, SubMenuEventID, dwData)
+	r1, _, _ := syscallSC.pMenuAddSubItem.Call(hSimConnect, MenuEventID, szMenuItem, SubMenuEventID, dwData)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MenuDeleteSubItem(hSimConnect uintptr, MenuEventID uintptr, SubMenuEventID uintptr) error {
-	r1, _, err := syscallSC.pMenuDeleteSubItem.Call(hSimConnect, MenuEventID, SubMenuEventID)
+	r1, _, _ := syscallSC.pMenuDeleteSubItem.Call(hSimConnect, MenuEventID, SubMenuEventID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestSystemState(hSimConnect uintptr, RequestID uintptr, szState uintptr) error {
-	r1, _, err := syscallSC.pRequestSystemState.Call(hSimConnect, RequestID, szState)
+	r1, _, _ := syscallSC.pRequestSystemState.Call(hSimConnect, RequestID, szState)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetSystemState(hSimConnect uintptr, szState uintptr, dwInteger uintptr, fFloat uintptr, szString uintptr) error {
-	r1, _, err := syscallSC.pSetSystemState.Call(hSimConnect, szState, dwInteger, fFloat, szString)
+	r1, _, _ := syscallSC.pSetSystemState.Call(hSimConnect, szState, dwInteger, fFloat, szString)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) MapClientDataNameToID(hSimConnect uintptr, szClientDataName uintptr, ClientDataID uintptr) error {
-	r1, _, err := syscallSC.pMapClientDataNameToID.Call(hSimConnect, szClientDataName, ClientDataID)
+	r1, _, _ := syscallSC.pMapClientDataNameToID.Call(hSimConnect, szClientDataName, ClientDataID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) CreateClientData(hSimConnect uintptr, ClientDataID uintptr, dwSize uintptr, Flags uintptr) error {
-	r1, _, err := syscallSC.pCreateClientData.Call(hSimConnect, ClientDataID, dwSize, Flags)
+	r1, _, _ := syscallSC.pCreateClientData.Call(hSimConnect, ClientDataID, dwSize, Flags)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) AddToClientDataDefinition(hSimConnect uintptr, DefineID uintptr, dwOffset uintptr, dwSizeOrType uintptr, fEpsilon uintptr, DatumID uintptr) error {
-	r1, _, err := syscallSC.pAddToClientDataDefinition.Call(hSimConnect, DefineID, dwOffset, dwSizeOrType, fEpsilon, DatumID)
+	r1, _, _ := syscallSC.pAddToClientDataDefinition.Call(hSimConnect, DefineID, dwOffset, dwSizeOrType, fEpsilon, DatumID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) ClearClientDataDefinition(hSimConnect uintptr, DefineID uintptr) error {
-	r1, _, err := syscallSC.pClearClientDataDefinition.Call(hSimConnect, DefineID)
+	r1, _, _ := syscallSC.pClearClientDataDefinition.Call(hSimConnect, DefineID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestClientData(hSimConnect uintptr, ClientDataID uintptr, RequestID uintptr, DefineID uintptr, Period uintptr, Flags uintptr, origin uintptr, interval uintptr, limit uintptr) error {
-	r1, _, err := syscallSC.pRequestClientData.Call(hSimConnect, ClientDataID, RequestID, DefineID, Period, Flags, origin, interval, limit)
+	r1, _, _ := syscallSC.pRequestClientData.Call(hSimConnect, ClientDataID, RequestID, DefineID, Period, Flags, origin, interval, limit)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SetClientData(hSimConnect uintptr, ClientDataID uintptr, DefineID uintptr, Flags uintptr, dwReserved uintptr, cbUnitSize uintptr, pDataSet uintptr) error {
-	r1, _, err := syscallSC.pSetClientData.Call(hSimConnect, ClientDataID, DefineID, Flags, dwReserved, cbUnitSize, pDataSet)
+	r1, _, _ := syscallSC.pSetClientData.Call(hSimConnect, ClientDataID, DefineID, Flags, dwReserved, cbUnitSize, pDataSet)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) FlightLoad(hSimConnect uintptr, szFileName uintptr) error {
-	r1, _, err := syscallSC.pFlightLoad.Call(hSimConnect, szFileName)
+	r1, _, _ := syscallSC.pFlightLoad.Call(hSimConnect, szFileName)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) FlightSave(hSimConnect uintptr, szFileName uintptr, szTitle uintptr, szDescription uintptr, Flags uintptr) error {
-	r1, _, err := syscallSC.pFlightSave.Call(hSimConnect, szFileName, szTitle, szDescription, Flags)
+	r1, _, _ := syscallSC.pFlightSave.Call(hSimConnect, szFileName, szTitle, szDescription, Flags)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) FlightPlanLoad(hSimConnect uintptr, szFileName uintptr) error {
-	r1, _, err := syscallSC.pFlightPlanLoad.Call(hSimConnect, szFileName)
+	r1, _, _ := syscallSC.pFlightPlanLoad.Call(hSimConnect, szFileName)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) Text(hSimConnect uintptr, t uintptr, fTimeSeconds uintptr, EventID uintptr, cbUnitSize uintptr, pDataSet uintptr) error {
-	r1, _, err := syscallSC.pText.Call(hSimConnect, t, fTimeSeconds, EventID, cbUnitSize, pDataSet)
+	r1, _, _ := syscallSC.pText.Call(hSimConnect, t, fTimeSeconds, EventID, cbUnitSize, pDataSet)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) SubscribeToFacilities(hSimConnect uintptr, t uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pSubscribeToFacilities.Call(hSimConnect, t, RequestID)
+	r1, _, _ := syscallSC.pSubscribeToFacilities.Call(hSimConnect, t, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) UnsubscribeToFacilities(hSimConnect uintptr, t uintptr) error {
-	r1, _, err := syscallSC.pUnsubscribeToFacilities.Call(hSimConnect, t)
+	r1, _, _ := syscallSC.pUnsubscribeToFacilities.Call(hSimConnect, t)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 func (syscallSC *SyscallSC) RequestFacilitiesList(hSimConnect uintptr, t uintptr, RequestID uintptr) error {
-	r1, _, err := syscallSC.pRequestFacilitiesList.Call(hSimConnect, t, RequestID)
+	r1, _, _ := syscallSC.pRequestFacilitiesList.Call(hSimConnect, t, RequestID)
 	if r1 != 0 {
 		return errors.New("r1 error")
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
