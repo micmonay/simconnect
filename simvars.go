@@ -1,5 +1,10 @@
 package simconnect
 
+import (
+	"bytes"
+	"encoding/binary"
+)
+
 // SimVar is usued for all SimVar describtion
 type SimVar struct {
 	Name     string
@@ -15,6 +20,15 @@ func (s SimVar) GetDatumType() uint32 {
 	default:
 		return SIMCONNECT_DATATYPE_FLOAT64
 	}
+}
+
+func (s SimVar) GetFloat64() (float64, error) {
+	var f float64
+	err := binary.Read(bytes.NewReader(*s.data), binary.LittleEndian, &f)
+	if err != nil {
+		return 0, err
+	}
+	return f, nil
 }
 
 // SimVarAutopilotPitchHold Simvar

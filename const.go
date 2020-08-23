@@ -4,8 +4,8 @@ package simconnect
 const (
 	MAX_PATH = 260
 
-	SIMCONNECT_UNUSED         = DWORD_MAX // special value to indicate unused event, ID
-	SIMCONNECT_OBJECT_ID_USER = 0         // proxy value for User vehicle ObjectID
+	SIMCONNECT_UNUSED         = 0xFFFFFFFF // special value to indicate unused event, ID
+	SIMCONNECT_OBJECT_ID_USER = 0          // proxy value for User vehicle ObjectID
 
 	SIMCONNECT_CAMERA_IGNORE_FIELD = 3.402823466e38 //Used to tell the Camera API to NOT modify the value in this part of the argument.
 

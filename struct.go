@@ -107,7 +107,7 @@ type SIMCONNECT_RECV_SIMOBJECT_DATA struct {
 	dwentrynumber uint32 // if multiple objects returned, this is number <entrynumber> out of <outof>.
 	dwoutof       uint32 // note: starts with 1, not 0.
 	dwDefineCount uint32 // data count (number of datums, *not* byte count)
-	dwData        float64
+	dwData        []byte
 }
 
 type SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE struct {

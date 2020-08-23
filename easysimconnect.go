@@ -1,8 +1,6 @@
 package simconnect
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"time"
 	"unsafe"
@@ -42,7 +40,37 @@ func (esc *EasySimConnect) Connect(appName string) error {
 	return nil
 }
 
+func getMemoryByte(startPos uintptr, size uint) []byte {
+	buf := make([]byte, size)
+	for i := uint(0); i < size; i++ {
+		buf[i] = *(*byte)(unsafe.Pointer(startPos + uintptr(i)))
+	}
+	return buf
+}
+
+func getSize(t uint32) int {
+	switch t {
+	case SIMCONNECT_DATATYPE_FLOAT64, SIMCONNECT_DATATYPE_INT64, SIMCONNECT_DATATYPE_STRING8:
+		return 8
+	case SIMCONNECT_DATATYPE_FLOAT32, SIMCONNECT_DATATYPE_INT32:
+		return 4
+	case SIMCONNECT_DATATYPE_STRING32:
+		return 32
+	case SIMCONNECT_DATATYPE_STRING64:
+		return 64
+	case SIMCONNECT_DATATYPE_STRING128:
+		return 128
+	case SIMCONNECT_DATATYPE_STRING256:
+		return 256
+	case SIMCONNECT_DATATYPE_STRING260:
+		return 260
+	}
+	logrus.Warnln("Not found size for the type : ", t)
+	return 0
+}
+
 func (esc *EasySimConnect) RunDispatch() {
+	defer esc.sc.Close()
 	for {
 		time.Sleep(esc.delay)
 		var ppdata unsafe.Pointer
@@ -63,25 +91,24 @@ func (esc *EasySimConnect) RunDispatch() {
 			fmt.Printf("%#v\n", recv)
 		case SIMCONNECT_RECV_ID_SIMOBJECT_DATA, SIMCONNECT_RECV_ID_SIMOBJECT_DATA_BYTYPE:
 			recv := *(*SIMCONNECT_RECV_SIMOBJECT_DATA)(ppdata)
-			if len(esc.listSimVar) > int(recv.dwDefineID) {
-				logrus.Warnf("ListSimVar not found: %#v\n", recv)
+			if len(esc.listSimVar) < int(recv.dwDefineID) {
+				logrus.Warnf("ListSimVar not found: %#v\n %#v\n %d>=%d", recv, esc.listSimVar, len(esc.listSimVar), int(recv.dwDefineID))
 				continue
 			}
 			listSimVar := esc.listSimVar[recv.dwDefineID]
-			if len(listSimVar) > int(recv.dwDefineCount) {
+			if len(listSimVar) < int(recv.dwDefineCount) {
 				logrus.Warnf("ListSimVar size not equal %#v ?= %#v\n", recv, listSimVar)
 				continue
 			}
+			startPos := uintptr(unsafe.Pointer(&recv.dwData))
+			returnSimVar := make([]SimVar, len(listSimVar))
 			for i, simVar := range listSimVar {
-				var buf = make([]byte, 8*i)
-				buf = *(*[]byte)(unsafe.Pointer(&recv.dwData))
-				var f float64
-				binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &f)
-				println(f)
-				bytes := buf[i*8 : i+1*8]
-				simVar.data = &bytes
-				// TODO: créer les autres type de variable
+				size := getSize(simVar.GetDatumType())
+				buf := getMemoryByte(startPos+uintptr(i*size), uint(size))
+				simVar.data = &buf
+				returnSimVar[i] = *simVar
 			}
+			esc.listChan[recv.dwDefineID] <- returnSimVar
 
 		default:
 			logrus.Infof("%#v\n", recvInfo)

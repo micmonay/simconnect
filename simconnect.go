@@ -270,6 +270,9 @@ func (sc *SimConnect) GetLastSentPacketID(pdwError *uint32) error {
 // Open SimConnect_Open(HANDLE * phSimConnect, LPCSTR szName, HWND hWnd, DWORD UserEventWin32, HANDLE hEventHandle, DWORD ConfigIndex);
 func (sc *SimConnect) Open(appTitle string) error {
 	err := sc.syscallSC.Open(uintptr(unsafe.Pointer(&sc.hSimConnect)), cChar(appTitle), uintptr(unsafe.Pointer(nil)), 0, 0, 0)
+	if err != nil {
+		return errors.New("No connected")
+	}
 	return err
 }
 
