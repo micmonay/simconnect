@@ -100,21 +100,26 @@ func (esc *EasySimConnect) RunDispatch() {
 				logrus.Warnf("ListSimVar size not equal %#v ?= %#v\n", recv, listSimVar)
 				continue
 			}
-			startPos := uintptr(unsafe.Pointer(&recv.dwData))
+			buf := (*[1 << 30]byte)(ppdata)[:recv.dwSize:recv.dwSize]
+			position := int(unsafe.Offsetof(recv.dwData))
 			returnSimVar := make([]SimVar, len(listSimVar))
 			for i, simVar := range listSimVar {
 				size := getSize(simVar.GetDatumType())
-				buf := getMemoryByte(startPos+uintptr(i*size), uint(size))
+				buf := buf[position : position+size]
+				position = position + size
 				simVar.data = &buf
 				returnSimVar[i] = *simVar
 			}
 			esc.listChan[recv.dwDefineID] <- returnSimVar
+			esc.sc.RequestDataOnSimObjectType(uint32(0), recv.dwDefineID, uint32(0), uint32(0))
 
 		default:
 			logrus.Infof("%#v\n", recvInfo)
 		}
 	}
 }
+
+// ConnConnectStructToSimObject
 func (esc *EasySimConnect) ConnectStructToSimObject(listSimVar ...SimVar) chan []SimVar {
 	defineID := uint32(len(esc.listSimVar))
 	addedSimVar := make([]*SimVar, 0)
