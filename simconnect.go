@@ -76,7 +76,7 @@ func (sc *SimConnect) AddToDataDefinition(DefineID uint32, DatumName string, Uni
 
 // ClearDataDefinition SimConnect_ClearDataDefinition(HANDLE hSimConnect, SIMCONNECT_DATA_DEFINITION_ID DefineID);
 func (sc *SimConnect) ClearDataDefinition(DefineID uint32) error {
-	return errors.New("not implemented")
+	return sc.syscallSC.ClearDataDefinition(sc.hSimConnect, uintptr(DefineID))
 }
 
 // RequestDataOnSimObject SimConnect_RequestDataOnSimObject(HANDLE hSimConnect, SIMCONNECT_DATA_REQUEST_ID RequestID, SIMCONNECT_DATA_DEFINITION_ID DefineID, SIMCONNECT_OBJECT_ID ObjectID, SIMCONNECT_PERIOD Period, SIMCONNECT_DATA_REQUEST_FLAG Flags = 0, DWORD origin = 0, DWORD interval = 0, DWORD limit = 0);
@@ -91,8 +91,11 @@ func (sc *SimConnect) RequestDataOnSimObjectType(RequestID uint32, DefineID uint
 }
 
 // SetDataOnSimObject SimConnect_SetDataOnSimObject(HANDLE hSimConnect, SIMCONNECT_DATA_DEFINITION_ID DefineID, SIMCONNECT_OBJECT_ID ObjectID, SIMCONNECT_DATA_SET_FLAG Flags, DWORD ArrayCount, DWORD cbUnitSize, void * pDataSet);
-func (sc *SimConnect) SetDataOnSimObject(DefineID uint32, ObjectID uint32, Flags uint32, ArrayCount uint32, cbUnitSize uint32, pDataSet *uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) SetDataOnSimObject(DefineID uint32, ObjectID uint32, Flags uint32, ArrayCount uint32, cbUnitSize uint32, pDataSet []byte) error {
+	if len(pDataSet) < 0 {
+		return errors.New("Your pDataSet is too short on SetDataOnSimObject")
+	}
+	return sc.syscallSC.SetDataOnSimObject(sc.hSimConnect, uintptr(DefineID), uintptr(ObjectID), uintptr(Flags), uintptr(ArrayCount), uintptr(cbUnitSize), uintptr(unsafe.Pointer(&pDataSet[0])))
 }
 
 // MapInputEventToClientEvent SimConnect_MapInputEventToClientEvent(HANDLE hSimConnect, SIMCONNECT_INPUT_GROUP_ID GroupID, const char * szInputDefinition, SIMCONNECT_CLIENT_EVENT_ID DownEventID, DWORD DownValue = 0, SIMCONNECT_CLIENT_EVENT_ID UpEventID = (SIMCONNECT_CLIENT_EVENT_ID)SIMCONNECT_UNUSED, DWORD UpValue = 0, BOOL bMaskable = FALSE);
@@ -258,7 +261,7 @@ func (sc *SimConnect) Close() error {
 }
 
 // RetrieveString SimConnect_RetrieveString(SIMCONNECT_RECV * pData, DWORD cbData, void * pStringV, char ** pszString, DWORD * pcbString);
-func (sc *SimConnect) RetrieveString(pData *uint32, cbData uint32, pStringV string, pszString string, pcbString *uint32) error {
+func (sc *SimConnect) RetrieveString(pData *uint32, cbData uint32, pStringV string, pszString **string, pcbString *uint32) error {
 	return errors.New("not implemented")
 }
 

@@ -3,6 +3,8 @@ package simconnect
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/sirupsen/logrus"
 )
 
 // SimVar is usued for all SimVar describtion
@@ -10,10 +12,13 @@ type SimVar struct {
 	Name     string
 	Units    string
 	Settable bool
-	data     *[]byte
+	data     []byte
 }
 
-func (s SimVar) GetDatumType() uint32 {
+func (s *SimVar) GetData() []byte {
+	return s.data
+}
+func (s *SimVar) GetDatumType() uint32 {
 	switch s.Units {
 	case "Bool":
 		return SIMCONNECT_DATATYPE_INT32
@@ -21,14 +26,41 @@ func (s SimVar) GetDatumType() uint32 {
 		return SIMCONNECT_DATATYPE_FLOAT64
 	}
 }
+func (s *SimVar) GetSize() int {
+	switch s.GetDatumType() {
+	case SIMCONNECT_DATATYPE_FLOAT64, SIMCONNECT_DATATYPE_INT64, SIMCONNECT_DATATYPE_STRING8:
+		return 8
+	case SIMCONNECT_DATATYPE_FLOAT32, SIMCONNECT_DATATYPE_INT32:
+		return 4
+	case SIMCONNECT_DATATYPE_STRING32:
+		return 32
+	case SIMCONNECT_DATATYPE_STRING64:
+		return 64
+	case SIMCONNECT_DATATYPE_STRING128:
+		return 128
+	case SIMCONNECT_DATATYPE_STRING256:
+		return 256
+	case SIMCONNECT_DATATYPE_STRING260:
+		return 260
+	}
+	logrus.Warnln("Not found size for the type : ", s.GetDatumType())
+	return 0
+}
 
-func (s SimVar) GetFloat64() (float64, error) {
+func (s *SimVar) GetFloat64() (float64, error) {
 	var f float64
-	err := binary.Read(bytes.NewReader(*s.data), binary.LittleEndian, &f)
+	err := binary.Read(bytes.NewReader(s.data), binary.LittleEndian, &f)
 	if err != nil {
 		return 0, err
 	}
 	return f, nil
+}
+
+func (s *SimVar) SetFloat64(f float64) {
+	s.data = make([]byte, 8)
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, &f)
+	copy(s.data, buf.Bytes())
 }
 
 // SimVarAutopilotPitchHold Simvar
