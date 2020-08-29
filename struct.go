@@ -15,6 +15,7 @@ type SIMCONNECT_RECV_EXCEPTION struct {
 
 type SIMCONNECT_RECV_OPEN struct {
 	SIMCONNECT_RECV
+	szApplicationName         [256]byte
 	dwApplicationVersionMajor uint32
 	dwApplicationVersionMinor uint32
 	dwApplicationBuildMajor   uint32

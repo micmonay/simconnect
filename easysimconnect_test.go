@@ -22,6 +22,9 @@ func ExampleGetSimVar() {
 		simconnect.SimVarIndicatedAltitude(),
 		simconnect.SimVarAutopilotAltitudeLockVar(),
 	)
+	newalt := simconnect.SimVarPlaneAltitude()
+	newalt.SetFloat64(10000.0)
+	sc.SetSimObject(newalt)
 	for {
 		result := <-cSimVar
 		for _, simVar := range result {

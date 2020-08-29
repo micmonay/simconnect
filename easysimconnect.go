@@ -22,6 +22,7 @@ func NewEasySimConnect() (*EasySimConnect, error) {
 	if err != nil {
 		return nil, err
 	}
+	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	return &EasySimConnect{
 		sc,
 		make([][]SimVar, 0),
@@ -49,6 +50,18 @@ func convertToGoBytes(ptr unsafe.Pointer, size int) ([]byte, error) {
 	return buf, nil
 }
 
+func convStrToGoString(buf []byte) string {
+	var index int
+	var value byte
+	for index, value = range buf {
+		if value == 0x00 {
+			break
+		}
+	}
+	return string(buf[:index])
+
+}
+
 func (esc *EasySimConnect) runDispatch() {
 	defer esc.sc.Close()
 	for {
@@ -67,6 +80,9 @@ func (esc *EasySimConnect) runDispatch() {
 		}
 		recvInfo := *(*SIMCONNECT_RECV)(ppdata)
 		switch recvInfo.dwID {
+		case SIMCONNECT_RECV_ID_OPEN:
+			recv := *(*SIMCONNECT_RECV_OPEN)(ppdata)
+			logrus.Infoln("Connected to", convStrToGoString(recv.szApplicationName[:]))
 		case SIMCONNECT_RECV_ID_EVENT:
 			//err = sc.RequestDataOnSimObjectType(0, 0, 0, 0)
 			/*if err != nil {

@@ -3,6 +3,7 @@ package simconnect
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 
 	"github.com/sirupsen/logrus"
 )
@@ -54,6 +55,14 @@ func (s *SimVar) GetFloat64() (float64, error) {
 		return 0, err
 	}
 	return f, nil
+}
+
+func (s *SimVar) GetDegrees() (float64, error) {
+	f, err := s.GetFloat64()
+	if err != nil {
+		return 0, err
+	}
+	return f * 180 / math.Pi, nil
 }
 
 func (s *SimVar) SetFloat64(f float64) {
