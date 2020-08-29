@@ -72,6 +72,10 @@ func (s *SimVar) SetFloat64(f float64) {
 	copy(s.data, buf.Bytes())
 }
 
+func (s *SimVar) GetString() string {
+	return convStrToGoString(s.data)
+}
+
 // SimVarAutopilotPitchHold Simvar
 func SimVarAutopilotPitchHold() SimVar {
 	return SimVar{

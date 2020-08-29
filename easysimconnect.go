@@ -1,7 +1,6 @@
 package simconnect
 
 import (
-	"errors"
 	"time"
 	"unsafe"
 
@@ -41,27 +40,6 @@ func (esc *EasySimConnect) Connect(appName string) error {
 	return nil
 }
 
-func convertToGoBytes(ptr unsafe.Pointer, size int) ([]byte, error) {
-	if size > 1<<30 {
-		return nil, errors.New("Dispatch return to big size array data")
-	}
-	buf := make([]byte, size)
-	copy(buf, (*[1 << 30]byte)(ptr)[:size:size])
-	return buf, nil
-}
-
-func convStrToGoString(buf []byte) string {
-	var index int
-	var value byte
-	for index, value = range buf {
-		if value == 0x00 {
-			break
-		}
-	}
-	return string(buf[:index])
-
-}
-
 func (esc *EasySimConnect) runDispatch() {
 	defer esc.sc.Close()
 	for {
@@ -73,7 +51,7 @@ func (esc *EasySimConnect) runDispatch() {
 		if err != nil {
 			continue
 		}
-		buf, err := convertToGoBytes(ppdata, int(pcbData))
+		buf, err := convCBytesToGoBytes(ppdata, int(pcbData))
 		if err != nil {
 			logrus.Errorln(err)
 			continue
