@@ -1,4 +1,4 @@
-# Golang SimConnect binding
+# Golang SimConnect binding for FS2020
 
 _This library is in developement and I have write little documentation. Please considerate this library as a testing version._
 
