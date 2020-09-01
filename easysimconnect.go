@@ -10,9 +10,10 @@ import (
 // EasySimConnect use for best easy use SimConnect in golang
 type EasySimConnect struct {
 	sc         *SimConnect
+	delay      time.Duration
 	listSimVar [][]SimVar
 	listChan   []chan []SimVar
-	delay      time.Duration
+	listEvent  []func(interface{})
 }
 
 // NewEasySimConnect create instance of EasySimConnect
@@ -24,10 +25,16 @@ func NewEasySimConnect() (*EasySimConnect, error) {
 	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	return &EasySimConnect{
 		sc,
+		100 * time.Millisecond,
 		make([][]SimVar, 0),
 		make([]chan []SimVar, 0),
-		100 * time.Millisecond,
+		make([]func(interface{}), 0),
 	}, nil
+}
+
+//SetDelay select delay update
+func (esc *EasySimConnect) SetDelay(t time.Duration) {
+	esc.delay = t
 }
 
 // Connect to sim and run dispatch or return error
@@ -62,10 +69,11 @@ func (esc *EasySimConnect) runDispatch() {
 			recv := *(*SIMCONNECT_RECV_OPEN)(ppdata)
 			logrus.Infoln("Connected to", convStrToGoString(recv.szApplicationName[:]))
 		case SIMCONNECT_RECV_ID_EVENT:
-			//err = sc.RequestDataOnSimObjectType(0, 0, 0, 0)
-			/*if err != nil {
-				println(err)
-			}*/
+			recv := *(*SIMCONNECT_RECV_EVENT)(ppdata)
+			esc.listEvent[recv.uEventID](recv)
+		case SIMCONNECT_RECV_ID_EVENT_FILENAME:
+			recv := *(*SIMCONNECT_RECV_EVENT_FILENAME)(ppdata)
+			esc.listEvent[recv.uEventID](recv)
 		case SIMCONNECT_RECV_ID_EXCEPTION:
 			recv := *(*SIMCONNECT_RECV_EXCEPTION)(ppdata)
 			logrus.Infoln("SimConnect Exception : ", getTextException(recv.dwException), recv.dwSendID)
@@ -96,8 +104,10 @@ func (esc *EasySimConnect) runDispatch() {
 			case esc.listChan[recv.dwDefineID] <- returnSimVar:
 			case <-time.After(esc.delay):
 			}
-
-			esc.sc.RequestDataOnSimObjectType(uint32(0), recv.dwDefineID, uint32(0), uint32(0))
+			go func() {
+				time.Sleep(esc.delay)
+				esc.sc.RequestDataOnSimObjectType(uint32(0), recv.dwDefineID, uint32(0), uint32(0))
+			}()
 
 		default:
 			logrus.Infof("%#v\n", recvInfo)
@@ -124,6 +134,7 @@ func (esc *EasySimConnect) ConnectStructToSimObject(listSimVar ...SimVar) chan [
 	return chanSimVar
 }
 
+//SetSimObject use for set SimVar in FS
 func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 	defineID := uint32(1 << 30)
 	err := esc.sc.AddToDataDefinition(defineID, simVar.Name, simVar.Units, simVar.GetDatumType(), 0, 0)
@@ -142,4 +153,98 @@ func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 		logrus.Infoln("Error set SimVar (", simVar.Name, ") in ClearDataDefinition error :", err)
 		return
 	}
+}
+func (esc *EasySimConnect) connectSysEvent(name string, cb func(interface{})) {
+	esc.listEvent = append(esc.listEvent, cb)
+	eventID := len(esc.listEvent) - 1
+	err := esc.sc.SubscribeToSystemEvent(uint32(eventID), name)
+	if err != nil {
+		logrus.Infoln("Error connect to Event ", name, " in ConnectSysEventCrashed error :", err)
+	}
+}
+
+//ConnectSysEventCrashed Request a notification if the user aircraft crashes.
+func (esc *EasySimConnect) ConnectSysEventCrashed() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SimEventCrashed, func(data interface{}) {
+		c <- true
+	})
+	return c
+}
+
+//ConnectSysEventCrashReset Request a notification when the crash cut-scene has completed.
+func (esc *EasySimConnect) ConnectSysEventCrashReset() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SimEventCrashReset, func(data interface{}) {
+		c <- true
+	})
+	return c
+}
+
+//ConnectSysEventPause Request notifications when the flight is paused or unpaused, and also immediately returns the current pause state (1 = paused or 0 = unpaused). The state is returned in the dwData parameter.
+func (esc *EasySimConnect) ConnectSysEventPause() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SimEventPause, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT)
+		c <- event.dwData > 0
+	})
+	return c
+}
+
+//ConnectSysEventPaused Request a notification when the flight is paused.
+func (esc *EasySimConnect) ConnectSysEventPaused() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SimEventPaused, func(data interface{}) {
+		c <- true
+	})
+	return c
+}
+
+//ConnectSysEventFlightPlanDeactivated Request a notification when the active flight plan is de-activated.
+func (esc *EasySimConnect) ConnectSysEventFlightPlanDeactivated() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SimEventFlightPlanDeactivated, func(data interface{}) {
+		c <- true
+	})
+	return c
+}
+
+//ConnectSysEventAircraftLoaded Request a notification when the aircraft flight dynamics file is changed. These files have a .AIR extension. The filename is returned in a string.
+func (esc *EasySimConnect) ConnectSysEventAircraftLoaded() <-chan string {
+	c := make(chan string)
+	esc.connectSysEvent(SimEventAircraftLoaded, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT_FILENAME)
+		c <- convStrToGoString(event.szFileName[:])
+	})
+	return c
+}
+
+//ConnectSysEventFlightLoaded 	Request a notification when a flight is loaded. Note that when a flight is ended, a default flight is typically loaded, so these events will occur when flights and missions are started and finished. The filename of the flight loaded is returned in a string
+func (esc *EasySimConnect) ConnectSysEventFlightLoaded() <-chan string {
+	c := make(chan string)
+	esc.connectSysEvent(SimEventFlightLoaded, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT_FILENAME)
+		c <- convStrToGoString(event.szFileName[:])
+	})
+	return c
+}
+
+//ConnectSysEventFlightSaved 	Request a notification when a flight is saved correctly. The filename of the flight saved is returned in a string
+func (esc *EasySimConnect) ConnectSysEventFlightSaved() <-chan string {
+	c := make(chan string)
+	esc.connectSysEvent(SimEventFlightSaved, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT_FILENAME)
+		c <- convStrToGoString(event.szFileName[:])
+	})
+	return c
+}
+
+//ConnConnectSysEventFlightPlanActivated Request a notification when a new flight plan is activated. The filename of the activated flight plan is returned in a string.
+func (esc *EasySimConnect) ConnectSysEventFlightPlanActivated() <-chan string {
+	c := make(chan string)
+	esc.connectSysEvent(SimEventFlightPlanActivated, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT_FILENAME)
+		c <- convStrToGoString(event.szFileName[:])
+	})
+	return c
 }
