@@ -1,4 +1,4 @@
-module simconnect
+module github.com/micmonay/simconnect
 
 go 1.14
 
