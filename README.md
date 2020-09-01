@@ -1,6 +1,6 @@
 # Golang SimConnect binding
 
-<span style="color:red">This library is in developement and I have write little documentation. Please considerate this library as a testing version.</span>
+_This library is in developement and I have write little documentation. Please considerate this library as a testing version._
 
 ## Example how to use my library
 ```go
