@@ -2,7 +2,8 @@ package simconnect_test
 
 import (
 	"log"
-	"simconnect"
+
+	"github.com/micmonay/simconnect"
 )
 
 // ExampleGetSimVar this example show how to get SimVar with EasySimConnect
