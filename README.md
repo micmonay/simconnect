@@ -2,7 +2,7 @@
 
 _This library is in developement and I have write little documentation. Please considerate this library as a testing version._
 
-For more information, how to use this library please show `example_test.go`
+For more information on how to use this library, please read `example_test.go`.
 
 ## Example how to use my library
 ```go

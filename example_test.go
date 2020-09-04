@@ -155,6 +155,7 @@ func Example_getString() {
 	}
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarAtcAirline(),
+		simconnect.SimVarCategory(),
 	)
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
