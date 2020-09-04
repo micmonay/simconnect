@@ -85,14 +85,14 @@ func (esc *EasySimConnect) runDispatch() {
 			}
 			listSimVar := esc.listSimVar[recv.dwDefineID]
 			if len(listSimVar) != int(recv.dwDefineCount) {
-				logrus.Warnf("ListSimVar size not equal %#v ?= %#v\n", recv, listSimVar)
+				logrus.Warnf("ListSimVar size not equal %#v ?= %#v\n", int(recv.dwDefineCount), len(listSimVar))
 				continue
 			}
 			position := int(unsafe.Offsetof(recv.dwData))
 			returnSimVar := make([]SimVar, len(listSimVar))
 			for i, simVar := range listSimVar {
 				size := simVar.GetSize()
-				if position > int(pcbData) {
+				if position+size > int(pcbData) {
 					logrus.Errorln("slice bounds out of range")
 					break
 				}
@@ -120,7 +120,7 @@ func (esc *EasySimConnect) ConnectStructToSimObject(listSimVar ...SimVar) chan [
 	defineID := uint32(len(esc.listSimVar))
 	addedSimVar := make([]SimVar, 0)
 	for i, simVar := range listSimVar {
-		err := esc.sc.AddToDataDefinition(defineID, simVar.Name, simVar.Units, simVar.GetDatumType(), 0, uint32(i))
+		err := esc.sc.AddToDataDefinition(defineID, simVar.getNameForDataDefinition(), simVar.getUnitsForDataDefinition(), simVar.GetDatumType(), 0, uint32(i))
 		if err != nil {
 			logrus.Infoln("Error add SimVar (", simVar.Name, ") error :", err)
 			continue

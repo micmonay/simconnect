@@ -256,8 +256,7 @@ func (sc *SimConnect) CompleteCustomMissionAction(guidInstanceID GUID) error {
 
 // Close SimConnect_Close(HANDLE hSimConnect);
 func (sc *SimConnect) Close() error {
-	err := sc.syscallSC.Close(sc.hSimConnect)
-	return err
+	return sc.syscallSC.Close(sc.hSimConnect)
 }
 
 // RetrieveString SimConnect_RetrieveString(SIMCONNECT_RECV * pData, DWORD cbData, void * pStringV, char ** pszString, DWORD * pcbString);
@@ -285,8 +284,7 @@ func (sc *SimConnect) Open(appTitle string) error {
 
 // GetNextDispatch SimConnect_GetNextDispatch(HANDLE hSimConnect, SIMCONNECT_RECV ** ppData, DWORD * pcbData);
 func (sc *SimConnect) GetNextDispatch(ppData *unsafe.Pointer, pcbData *uint32) error {
-	err := sc.syscallSC.GetNextDispatch(sc.hSimConnect, uintptr(unsafe.Pointer(ppData)), uintptr(unsafe.Pointer(pcbData)))
-	return err
+	return sc.syscallSC.GetNextDispatch(sc.hSimConnect, uintptr(unsafe.Pointer(ppData)), uintptr(unsafe.Pointer(pcbData)))
 }
 
 // RequestResponseTimes SimConnect_RequestResponseTimes(HANDLE hSimConnect, DWORD nCount, float * fElapsedSeconds);

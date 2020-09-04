@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math"
+	"strconv"
+	"strings"
+	"unsafe"
 
 	"github.com/sirupsen/logrus"
 )
@@ -13,20 +16,51 @@ type SimVar struct {
 	Name     string
 	Units    string
 	Settable bool
+	Index    int
 	data     []byte
 }
 
+func (s *SimVar) getUnitsForDataDefinition() string {
+	if strings.Contains(s.Units, "String") ||
+		strings.Contains(s.Units, "string") ||
+		s.Units == "SIMCONNECT_DATA_LATLONALT" ||
+		s.Units == "SIMCONNECT_DATA_XYZ" ||
+		s.Units == "SIMCONNECT_DATA_WAYPOINT" {
+		return ""
+	}
+	return s.Units
+}
+func (s *SimVar) getNameForDataDefinition() string {
+	if strings.Contains(s.Name, ":index") {
+		return strings.Replace(s.Name, ":index", ":"+strconv.Itoa(s.Index), 1)
+	}
+	return s.Name
+}
 func (s *SimVar) GetData() []byte {
 	return s.data
 }
+
 func (s *SimVar) GetDatumType() uint32 {
 	switch s.Units {
 	case "Bool":
 		return SIMCONNECT_DATATYPE_INT32
+	case "String8":
+		return SIMCONNECT_DATATYPE_STRING8
+	case "String64":
+		return SIMCONNECT_DATATYPE_STRING64
+	case "String":
+		return SIMCONNECT_DATATYPE_STRING256
+	case "SIMCONNECT_DATA_LATLONALT":
+		return SIMCONNECT_DATATYPE_LATLONALT
+	case "SIMCONNECT_DATA_XYZ":
+		return SIMCONNECT_DATATYPE_XYZ
+	case "SIMCONNECT_DATA_WAYPOINT":
+		return SIMCONNECT_DATATYPE_WAYPOINT
 	default:
 		return SIMCONNECT_DATATYPE_FLOAT64
 	}
 }
+
 func (s *SimVar) GetSize() int {
 	switch s.GetDatumType() {
 	case SIMCONNECT_DATATYPE_FLOAT64, SIMCONNECT_DATATYPE_INT64, SIMCONNECT_DATATYPE_STRING8:
@@ -43,6 +77,12 @@ func (s *SimVar) GetSize() int {
 		return 256
 	case SIMCONNECT_DATATYPE_STRING260:
 		return 260
+	case SIMCONNECT_DATATYPE_LATLONALT:
+		return int(unsafe.Sizeof(SIMCONNECT_DATA_LATLONALT{}))
+	case SIMCONNECT_DATATYPE_XYZ:
+		return int(unsafe.Sizeof(SIMCONNECT_DATA_XYZ{}))
+	case SIMCONNECT_DATATYPE_WAYPOINT:
+		return int(unsafe.Sizeof(SIMCONNECT_DATA_WAYPOINT{}))
 	}
 	logrus.Warnln("Not found size for the type : ", s.GetDatumType())
 	return 0
@@ -57,12 +97,48 @@ func (s *SimVar) GetFloat64() (float64, error) {
 	return f, nil
 }
 
+//GetInt lost precision
+func (s *SimVar) GetInt() (int, error) {
+	f, err := s.GetFloat64()
+	if err != nil {
+		return 0, err
+	}
+	return int(f), nil
+}
+
 func (s *SimVar) GetDegrees() (float64, error) {
 	f, err := s.GetFloat64()
 	if err != nil {
 		return 0, err
 	}
 	return f * 180 / math.Pi, nil
+}
+
+func (s *SimVar) GetDataXYZ() (*SIMCONNECT_DATA_XYZ, error) {
+	var data SIMCONNECT_DATA_XYZ
+	err := binary.Read(bytes.NewReader(s.data), binary.LittleEndian, &data)
+	if err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (s *SimVar) GetDataLatLonAlt() (*SIMCONNECT_DATA_LATLONALT, error) {
+	var data SIMCONNECT_DATA_LATLONALT
+	err := binary.Read(bytes.NewReader(s.data), binary.LittleEndian, &data)
+	if err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (s *SimVar) GetDataWaypoint() (*SIMCONNECT_DATA_WAYPOINT, error) {
+	var data SIMCONNECT_DATA_WAYPOINT
+	err := binary.Read(bytes.NewReader(s.data), binary.LittleEndian, &data)
+	if err != nil {
+		return nil, err
+	}
+	return &data, nil
 }
 
 func (s *SimVar) SetFloat64(f float64) {
@@ -77,8 +153,14 @@ func (s *SimVar) GetString() string {
 }
 
 // SimVarAutopilotPitchHold Simvar
-func SimVarAutopilotPitchHold() SimVar {
+// args contain optional index
+func SimVarAutopilotPitchHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT PITCH HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -86,8 +168,14 @@ func SimVarAutopilotPitchHold() SimVar {
 }
 
 // SimVarStructAmbientWind Simvar
-func SimVarStructAmbientWind() SimVar {
+// args contain optional index
+func SimVarStructAmbientWind(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT AMBIENT WIND",
 		Units:    "Feet per second",
 		Settable: false,
@@ -95,8 +183,14 @@ func SimVarStructAmbientWind() SimVar {
 }
 
 // SimVarLaunchbarPosition Simvar
-func SimVarLaunchbarPosition() SimVar {
+// args contain optional index
+func SimVarLaunchbarPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LAUNCHBAR POSITION",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -104,8 +198,14 @@ func SimVarLaunchbarPosition() SimVar {
 }
 
 // SimVarNumberOfCatapults Simvar
-func SimVarNumberOfCatapults() SimVar {
+// args contain optional index
+func SimVarNumberOfCatapults(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NUMBER OF CATAPULTS",
 		Units:    "Number",
 		Settable: false,
@@ -113,8 +213,14 @@ func SimVarNumberOfCatapults() SimVar {
 }
 
 // SimVarHoldbackBarInstalled Simvar
-func SimVarHoldbackBarInstalled() SimVar {
+// args contain optional index
+func SimVarHoldbackBarInstalled(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HOLDBACK BAR INSTALLED",
 		Units:    "Bool",
 		Settable: false,
@@ -122,8 +228,14 @@ func SimVarHoldbackBarInstalled() SimVar {
 }
 
 // SimVarBlastShieldPosition Simvar
-func SimVarBlastShieldPosition() SimVar {
+// args contain optional index
+func SimVarBlastShieldPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BLAST SHIELD POSITION:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -131,8 +243,14 @@ func SimVarBlastShieldPosition() SimVar {
 }
 
 // SimVarRecipEngDetonating Simvar
-func SimVarRecipEngDetonating() SimVar {
+// args contain optional index
+func SimVarRecipEngDetonating(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG DETONATING:index",
 		Units:    "Bool",
 		Settable: false,
@@ -140,8 +258,14 @@ func SimVarRecipEngDetonating() SimVar {
 }
 
 // SimVarRecipEngCylinderHealth Simvar
-func SimVarRecipEngCylinderHealth() SimVar {
+// args contain optional index
+func SimVarRecipEngCylinderHealth(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG CYLINDER HEALTH:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -149,8 +273,14 @@ func SimVarRecipEngCylinderHealth() SimVar {
 }
 
 // SimVarRecipEngNumCylinders Simvar
-func SimVarRecipEngNumCylinders() SimVar {
+// args contain optional index
+func SimVarRecipEngNumCylinders(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG NUM CYLINDERS",
 		Units:    "Number",
 		Settable: false,
@@ -158,8 +288,14 @@ func SimVarRecipEngNumCylinders() SimVar {
 }
 
 // SimVarRecipEngNumCylindersFailed Simvar
-func SimVarRecipEngNumCylindersFailed() SimVar {
+// args contain optional index
+func SimVarRecipEngNumCylindersFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG NUM CYLINDERS FAILED",
 		Units:    "Number",
 		Settable: false,
@@ -167,8 +303,14 @@ func SimVarRecipEngNumCylindersFailed() SimVar {
 }
 
 // SimVarRecipEngAntidetonationTankValve Simvar
-func SimVarRecipEngAntidetonationTankValve() SimVar {
+// args contain optional index
+func SimVarRecipEngAntidetonationTankValve(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK VALVE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -176,8 +318,14 @@ func SimVarRecipEngAntidetonationTankValve() SimVar {
 }
 
 // SimVarRecipEngAntidetonationTankQuantity Simvar
-func SimVarRecipEngAntidetonationTankQuantity() SimVar {
+// args contain optional index
+func SimVarRecipEngAntidetonationTankQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK QUANTITY:index",
 		Units:    "Gallons",
 		Settable: true,
@@ -185,8 +333,14 @@ func SimVarRecipEngAntidetonationTankQuantity() SimVar {
 }
 
 // SimVarRecipEngAntidetonationTankMaxQuantity Simvar
-func SimVarRecipEngAntidetonationTankMaxQuantity() SimVar {
+// args contain optional index
+func SimVarRecipEngAntidetonationTankMaxQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK MAX QUANTITY:index",
 		Units:    "Gallons",
 		Settable: false,
@@ -194,8 +348,14 @@ func SimVarRecipEngAntidetonationTankMaxQuantity() SimVar {
 }
 
 // SimVarRecipEngNitrousTankValve Simvar
-func SimVarRecipEngNitrousTankValve() SimVar {
+// args contain optional index
+func SimVarRecipEngNitrousTankValve(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK VALVE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -203,8 +363,14 @@ func SimVarRecipEngNitrousTankValve() SimVar {
 }
 
 // SimVarRecipEngNitrousTankQuantity Simvar
-func SimVarRecipEngNitrousTankQuantity() SimVar {
+// args contain optional index
+func SimVarRecipEngNitrousTankQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK QUANTITY:index",
 		Units:    "Gallons",
 		Settable: true,
@@ -212,8 +378,14 @@ func SimVarRecipEngNitrousTankQuantity() SimVar {
 }
 
 // SimVarRecipEngNitrousTankMaxQuantity Simvar
-func SimVarRecipEngNitrousTankMaxQuantity() SimVar {
+// args contain optional index
+func SimVarRecipEngNitrousTankMaxQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK MAX QUANTITY:index",
 		Units:    "Gallons",
 		Settable: false,
@@ -221,8 +393,14 @@ func SimVarRecipEngNitrousTankMaxQuantity() SimVar {
 }
 
 // SimVarPayloadStationObject Simvar
-func SimVarPayloadStationObject() SimVar {
+// args contain optional index
+func SimVarPayloadStationObject(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PAYLOAD STATION OBJECT:index",
 		Units:    "String",
 		Settable: true,
@@ -230,8 +408,14 @@ func SimVarPayloadStationObject() SimVar {
 }
 
 // SimVarPayloadStationNumSimobjects Simvar
-func SimVarPayloadStationNumSimobjects() SimVar {
+// args contain optional index
+func SimVarPayloadStationNumSimobjects(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PAYLOAD STATION NUM SIMOBJECTS:index",
 		Units:    "Number",
 		Settable: false,
@@ -239,8 +423,14 @@ func SimVarPayloadStationNumSimobjects() SimVar {
 }
 
 // SimVarSlingObjectAttached Simvar
-func SimVarSlingObjectAttached() SimVar {
+// args contain optional index
+func SimVarSlingObjectAttached(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING OBJECT ATTACHED:index",
 		Units:    "Bool/String",
 		Settable: false,
@@ -248,8 +438,14 @@ func SimVarSlingObjectAttached() SimVar {
 }
 
 // SimVarSlingCableBroken Simvar
-func SimVarSlingCableBroken() SimVar {
+// args contain optional index
+func SimVarSlingCableBroken(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING CABLE BROKEN:index",
 		Units:    "Bool",
 		Settable: false,
@@ -257,8 +453,14 @@ func SimVarSlingCableBroken() SimVar {
 }
 
 // SimVarSlingCableExtendedLength Simvar
-func SimVarSlingCableExtendedLength() SimVar {
+// args contain optional index
+func SimVarSlingCableExtendedLength(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING CABLE EXTENDED LENGTH:index",
 		Units:    "Feet",
 		Settable: true,
@@ -266,8 +468,14 @@ func SimVarSlingCableExtendedLength() SimVar {
 }
 
 // SimVarSlingActivePayloadStation Simvar
-func SimVarSlingActivePayloadStation() SimVar {
+// args contain optional index
+func SimVarSlingActivePayloadStation(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING ACTIVE PAYLOAD STATION:index",
 		Units:    "Number",
 		Settable: true,
@@ -275,8 +483,14 @@ func SimVarSlingActivePayloadStation() SimVar {
 }
 
 // SimVarSlingHoistPercentDeployed Simvar
-func SimVarSlingHoistPercentDeployed() SimVar {
+// args contain optional index
+func SimVarSlingHoistPercentDeployed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING HOIST PERCENT DEPLOYED:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -284,8 +498,14 @@ func SimVarSlingHoistPercentDeployed() SimVar {
 }
 
 // SimVarSlingHookInPickupMode Simvar
-func SimVarSlingHookInPickupMode() SimVar {
+// args contain optional index
+func SimVarSlingHookInPickupMode(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SLING HOOK IN PICKUP MODE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -293,8 +513,14 @@ func SimVarSlingHookInPickupMode() SimVar {
 }
 
 // SimVarIsAttachedToSling Simvar
-func SimVarIsAttachedToSling() SimVar {
+// args contain optional index
+func SimVarIsAttachedToSling(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS ATTACHED TO SLING",
 		Units:    "Bool",
 		Settable: false,
@@ -302,8 +528,14 @@ func SimVarIsAttachedToSling() SimVar {
 }
 
 // SimVarAlternateStaticSourceOpen Simvar
-func SimVarAlternateStaticSourceOpen() SimVar {
+// args contain optional index
+func SimVarAlternateStaticSourceOpen(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ALTERNATE STATIC SOURCE OPEN",
 		Units:    "Bool",
 		Settable: false,
@@ -311,8 +543,14 @@ func SimVarAlternateStaticSourceOpen() SimVar {
 }
 
 // SimVarAileronTrimPct Simvar
-func SimVarAileronTrimPct() SimVar {
+// args contain optional index
+func SimVarAileronTrimPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON TRIM PCT",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: true,
@@ -320,8 +558,14 @@ func SimVarAileronTrimPct() SimVar {
 }
 
 // SimVarRudderTrimPct Simvar
-func SimVarRudderTrimPct() SimVar {
+// args contain optional index
+func SimVarRudderTrimPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER TRIM PCT",
 		Units:    "Percent over 100",
 		Settable: true,
@@ -329,8 +573,14 @@ func SimVarRudderTrimPct() SimVar {
 }
 
 // SimVarLightOnStates Simvar
-func SimVarLightOnStates() SimVar {
+// args contain optional index
+func SimVarLightOnStates(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT ON STATES",
 		Units:    "Mask",
 		Settable: false,
@@ -338,8 +588,14 @@ func SimVarLightOnStates() SimVar {
 }
 
 // SimVarLightStates Simvar
-func SimVarLightStates() SimVar {
+// args contain optional index
+func SimVarLightStates(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT STATES",
 		Units:    "Mask",
 		Settable: false,
@@ -347,8 +603,14 @@ func SimVarLightStates() SimVar {
 }
 
 // SimVarLandingLightPbh Simvar
-func SimVarLandingLightPbh() SimVar {
+// args contain optional index
+func SimVarLandingLightPbh(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LANDING LIGHT PBH",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -356,8 +618,14 @@ func SimVarLandingLightPbh() SimVar {
 }
 
 // SimVarLightTaxiOn Simvar
-func SimVarLightTaxiOn() SimVar {
+// args contain optional index
+func SimVarLightTaxiOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT TAXI ON",
 		Units:    "Bool",
 		Settable: false,
@@ -365,8 +633,14 @@ func SimVarLightTaxiOn() SimVar {
 }
 
 // SimVarLightStrobeOn Simvar
-func SimVarLightStrobeOn() SimVar {
+// args contain optional index
+func SimVarLightStrobeOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT STROBE ON",
 		Units:    "Bool",
 		Settable: false,
@@ -374,8 +648,14 @@ func SimVarLightStrobeOn() SimVar {
 }
 
 // SimVarLightPanelOn Simvar
-func SimVarLightPanelOn() SimVar {
+// args contain optional index
+func SimVarLightPanelOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT PANEL ON",
 		Units:    "Bool",
 		Settable: false,
@@ -383,8 +663,14 @@ func SimVarLightPanelOn() SimVar {
 }
 
 // SimVarLightRecognitionOn Simvar
-func SimVarLightRecognitionOn() SimVar {
+// args contain optional index
+func SimVarLightRecognitionOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT RECOGNITION ON",
 		Units:    "Bool",
 		Settable: false,
@@ -392,8 +678,14 @@ func SimVarLightRecognitionOn() SimVar {
 }
 
 // SimVarLightWingOn Simvar
-func SimVarLightWingOn() SimVar {
+// args contain optional index
+func SimVarLightWingOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT WING ON",
 		Units:    "Bool",
 		Settable: false,
@@ -401,8 +693,14 @@ func SimVarLightWingOn() SimVar {
 }
 
 // SimVarLightLogoOn Simvar
-func SimVarLightLogoOn() SimVar {
+// args contain optional index
+func SimVarLightLogoOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT LOGO ON",
 		Units:    "Bool",
 		Settable: false,
@@ -410,8 +708,14 @@ func SimVarLightLogoOn() SimVar {
 }
 
 // SimVarLightCabinOn Simvar
-func SimVarLightCabinOn() SimVar {
+// args contain optional index
+func SimVarLightCabinOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT CABIN ON",
 		Units:    "Bool",
 		Settable: false,
@@ -419,8 +723,14 @@ func SimVarLightCabinOn() SimVar {
 }
 
 // SimVarLightHeadOn Simvar
-func SimVarLightHeadOn() SimVar {
+// args contain optional index
+func SimVarLightHeadOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT HEAD ON",
 		Units:    "Bool",
 		Settable: false,
@@ -428,8 +738,14 @@ func SimVarLightHeadOn() SimVar {
 }
 
 // SimVarLightBrakeOn Simvar
-func SimVarLightBrakeOn() SimVar {
+// args contain optional index
+func SimVarLightBrakeOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT BRAKE ON",
 		Units:    "Bool",
 		Settable: false,
@@ -437,8 +753,14 @@ func SimVarLightBrakeOn() SimVar {
 }
 
 // SimVarLightNavOn Simvar
-func SimVarLightNavOn() SimVar {
+// args contain optional index
+func SimVarLightNavOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT NAV ON",
 		Units:    "Bool",
 		Settable: false,
@@ -446,8 +768,14 @@ func SimVarLightNavOn() SimVar {
 }
 
 // SimVarLightBeaconOn Simvar
-func SimVarLightBeaconOn() SimVar {
+// args contain optional index
+func SimVarLightBeaconOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT BEACON ON",
 		Units:    "Bool",
 		Settable: false,
@@ -455,8 +783,14 @@ func SimVarLightBeaconOn() SimVar {
 }
 
 // SimVarLightLandingOn Simvar
-func SimVarLightLandingOn() SimVar {
+// args contain optional index
+func SimVarLightLandingOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT LANDING ON",
 		Units:    "Bool",
 		Settable: false,
@@ -464,17 +798,29 @@ func SimVarLightLandingOn() SimVar {
 }
 
 // SimVarAiDesiredSpeed Simvar
-func SimVarAiDesiredSpeed() SimVar {
+// args contain optional index
+func SimVarAiDesiredSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI DESIRED SPEED",
 		Units:    "Knots",
 		Settable: true,
 	}
 }
 
-// SimVarAiWaypointList Simvar
-func SimVarAiWaypointList() SimVar {
+// SimVarAiWaypointList Actually not supported
+// args contain optional index
+func SimVarAiWaypointList(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI WAYPOINT LIST",
 		Units:    "SIMCONNECT_DATA_WAYPOINT",
 		Settable: true,
@@ -482,8 +828,14 @@ func SimVarAiWaypointList() SimVar {
 }
 
 // SimVarAiCurrentWaypoint Simvar
-func SimVarAiCurrentWaypoint() SimVar {
+// args contain optional index
+func SimVarAiCurrentWaypoint(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI CURRENT WAYPOINT",
 		Units:    "Number",
 		Settable: true,
@@ -491,8 +843,14 @@ func SimVarAiCurrentWaypoint() SimVar {
 }
 
 // SimVarAiDesiredHeading Simvar
-func SimVarAiDesiredHeading() SimVar {
+// args contain optional index
+func SimVarAiDesiredHeading(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI DESIRED HEADING",
 		Units:    "Degrees",
 		Settable: true,
@@ -500,8 +858,14 @@ func SimVarAiDesiredHeading() SimVar {
 }
 
 // SimVarAiGroundturntime Simvar
-func SimVarAiGroundturntime() SimVar {
+// args contain optional index
+func SimVarAiGroundturntime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI GROUNDTURNTIME",
 		Units:    "Seconds",
 		Settable: true,
@@ -509,8 +873,14 @@ func SimVarAiGroundturntime() SimVar {
 }
 
 // SimVarAiGroundcruisespeed Simvar
-func SimVarAiGroundcruisespeed() SimVar {
+// args contain optional index
+func SimVarAiGroundcruisespeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI GROUNDCRUISESPEED",
 		Units:    "Knots",
 		Settable: true,
@@ -518,8 +888,14 @@ func SimVarAiGroundcruisespeed() SimVar {
 }
 
 // SimVarAiGroundturnspeed Simvar
-func SimVarAiGroundturnspeed() SimVar {
+// args contain optional index
+func SimVarAiGroundturnspeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI GROUNDTURNSPEED",
 		Units:    "Knots",
 		Settable: true,
@@ -527,8 +903,14 @@ func SimVarAiGroundturnspeed() SimVar {
 }
 
 // SimVarAiTrafficIsifr Simvar
-func SimVarAiTrafficIsifr() SimVar {
+// args contain optional index
+func SimVarAiTrafficIsifr(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC ISIFR",
 		Units:    "Boolean",
 		Settable: false,
@@ -536,8 +918,14 @@ func SimVarAiTrafficIsifr() SimVar {
 }
 
 // SimVarAiTrafficState Simvar
-func SimVarAiTrafficState() SimVar {
+// args contain optional index
+func SimVarAiTrafficState(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC STATE",
 		Units:    "String",
 		Settable: false,
@@ -545,8 +933,14 @@ func SimVarAiTrafficState() SimVar {
 }
 
 // SimVarAiTrafficCurrentAirport Simvar
-func SimVarAiTrafficCurrentAirport() SimVar {
+// args contain optional index
+func SimVarAiTrafficCurrentAirport(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC CURRENT AIRPORT",
 		Units:    "String",
 		Settable: false,
@@ -554,8 +948,14 @@ func SimVarAiTrafficCurrentAirport() SimVar {
 }
 
 // SimVarAiTrafficAssignedRunway Simvar
-func SimVarAiTrafficAssignedRunway() SimVar {
+// args contain optional index
+func SimVarAiTrafficAssignedRunway(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC ASSIGNED RUNWAY",
 		Units:    "String",
 		Settable: false,
@@ -563,8 +963,14 @@ func SimVarAiTrafficAssignedRunway() SimVar {
 }
 
 // SimVarAiTrafficAssignedParking Simvar
-func SimVarAiTrafficAssignedParking() SimVar {
+// args contain optional index
+func SimVarAiTrafficAssignedParking(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC ASSIGNED PARKING",
 		Units:    "String",
 		Settable: false,
@@ -572,8 +978,14 @@ func SimVarAiTrafficAssignedParking() SimVar {
 }
 
 // SimVarAiTrafficFromairport Simvar
-func SimVarAiTrafficFromairport() SimVar {
+// args contain optional index
+func SimVarAiTrafficFromairport(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC FROMAIRPORT",
 		Units:    "String",
 		Settable: false,
@@ -581,8 +993,14 @@ func SimVarAiTrafficFromairport() SimVar {
 }
 
 // SimVarAiTrafficToairport Simvar
-func SimVarAiTrafficToairport() SimVar {
+// args contain optional index
+func SimVarAiTrafficToairport(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC TOAIRPORT",
 		Units:    "String",
 		Settable: false,
@@ -590,8 +1008,14 @@ func SimVarAiTrafficToairport() SimVar {
 }
 
 // SimVarAiTrafficEtd Simvar
-func SimVarAiTrafficEtd() SimVar {
+// args contain optional index
+func SimVarAiTrafficEtd(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC ETD",
 		Units:    "Seconds",
 		Settable: false,
@@ -599,8 +1023,14 @@ func SimVarAiTrafficEtd() SimVar {
 }
 
 // SimVarAiTrafficEta Simvar
-func SimVarAiTrafficEta() SimVar {
+// args contain optional index
+func SimVarAiTrafficEta(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AI TRAFFIC ETA",
 		Units:    "Seconds",
 		Settable: false,
@@ -608,8 +1038,14 @@ func SimVarAiTrafficEta() SimVar {
 }
 
 // SimVarDroppableObjectsType Simvar
-func SimVarDroppableObjectsType() SimVar {
+// args contain optional index
+func SimVarDroppableObjectsType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DROPPABLE OBJECTS TYPE:index",
 		Units:    "String",
 		Settable: true,
@@ -617,8 +1053,14 @@ func SimVarDroppableObjectsType() SimVar {
 }
 
 // SimVarDroppableObjectsCount Simvar
-func SimVarDroppableObjectsCount() SimVar {
+// args contain optional index
+func SimVarDroppableObjectsCount(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DROPPABLE OBJECTS COUNT:index",
 		Units:    "Number",
 		Settable: false,
@@ -626,8 +1068,14 @@ func SimVarDroppableObjectsCount() SimVar {
 }
 
 // SimVarWingFlexPct Simvar
-func SimVarWingFlexPct() SimVar {
+// args contain optional index
+func SimVarWingFlexPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WING FLEX PCT:index",
 		Units:    "Percent over 100",
 		Settable: true,
@@ -635,8 +1083,14 @@ func SimVarWingFlexPct() SimVar {
 }
 
 // SimVarApplyHeatToSystems Simvar
-func SimVarApplyHeatToSystems() SimVar {
+// args contain optional index
+func SimVarApplyHeatToSystems(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APPLY HEAT TO SYSTEMS",
 		Units:    "Bool",
 		Settable: true,
@@ -644,8 +1098,14 @@ func SimVarApplyHeatToSystems() SimVar {
 }
 
 // SimVarAdfLatlonalt Simvar
-func SimVarAdfLatlonalt() SimVar {
+// args contain optional index
+func SimVarAdfLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF LATLONALT:index",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -653,8 +1113,14 @@ func SimVarAdfLatlonalt() SimVar {
 }
 
 // SimVarNavVorLatlonalt Simvar
-func SimVarNavVorLatlonalt() SimVar {
+// args contain optional index
+func SimVarNavVorLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV VOR LATLONALT:index",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -662,8 +1128,14 @@ func SimVarNavVorLatlonalt() SimVar {
 }
 
 // SimVarNavGsLatlonalt Simvar
-func SimVarNavGsLatlonalt() SimVar {
+// args contain optional index
+func SimVarNavGsLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GS LATLONALT:index",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -671,8 +1143,14 @@ func SimVarNavGsLatlonalt() SimVar {
 }
 
 // SimVarNavDmeLatlonalt Simvar
-func SimVarNavDmeLatlonalt() SimVar {
+// args contain optional index
+func SimVarNavDmeLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV DME LATLONALT:index",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -680,8 +1158,14 @@ func SimVarNavDmeLatlonalt() SimVar {
 }
 
 // SimVarInnerMarkerLatlonalt Simvar
-func SimVarInnerMarkerLatlonalt() SimVar {
+// args contain optional index
+func SimVarInnerMarkerLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INNER MARKER LATLONALT",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -689,8 +1173,14 @@ func SimVarInnerMarkerLatlonalt() SimVar {
 }
 
 // SimVarMiddleMarkerLatlonalt Simvar
-func SimVarMiddleMarkerLatlonalt() SimVar {
+// args contain optional index
+func SimVarMiddleMarkerLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MIDDLE MARKER LATLONALT",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -698,8 +1188,14 @@ func SimVarMiddleMarkerLatlonalt() SimVar {
 }
 
 // SimVarOuterMarkerLatlonalt Simvar
-func SimVarOuterMarkerLatlonalt() SimVar {
+// args contain optional index
+func SimVarOuterMarkerLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "OUTER MARKER LATLONALT",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -707,8 +1203,14 @@ func SimVarOuterMarkerLatlonalt() SimVar {
 }
 
 // SimVarStructLatlonalt Simvar
-func SimVarStructLatlonalt() SimVar {
+// args contain optional index
+func SimVarStructLatlonalt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT LATLONALT",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -716,8 +1218,14 @@ func SimVarStructLatlonalt() SimVar {
 }
 
 // SimVarStructLatlonaltpbh Simvar
-func SimVarStructLatlonaltpbh() SimVar {
+// args contain optional index
+func SimVarStructLatlonaltpbh(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT LATLONALTPBH",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -725,8 +1233,14 @@ func SimVarStructLatlonaltpbh() SimVar {
 }
 
 // SimVarStructSurfaceRelativeVelocity Simvar
-func SimVarStructSurfaceRelativeVelocity() SimVar {
+// args contain optional index
+func SimVarStructSurfaceRelativeVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT SURFACE RELATIVE VELOCITY",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -734,8 +1248,14 @@ func SimVarStructSurfaceRelativeVelocity() SimVar {
 }
 
 // SimVarStructWorldvelocity Simvar
-func SimVarStructWorldvelocity() SimVar {
+// args contain optional index
+func SimVarStructWorldvelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT WORLDVELOCITY",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -743,8 +1263,14 @@ func SimVarStructWorldvelocity() SimVar {
 }
 
 // SimVarStructWorldRotationVelocity Simvar
-func SimVarStructWorldRotationVelocity() SimVar {
+// args contain optional index
+func SimVarStructWorldRotationVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT WORLD ROTATION VELOCITY",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -752,8 +1278,14 @@ func SimVarStructWorldRotationVelocity() SimVar {
 }
 
 // SimVarStructBodyVelocity Simvar
-func SimVarStructBodyVelocity() SimVar {
+// args contain optional index
+func SimVarStructBodyVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT BODY VELOCITY",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -761,8 +1293,14 @@ func SimVarStructBodyVelocity() SimVar {
 }
 
 // SimVarStructBodyRotationVelocity Simvar
-func SimVarStructBodyRotationVelocity() SimVar {
+// args contain optional index
+func SimVarStructBodyRotationVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT BODY ROTATION VELOCITY",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -770,8 +1308,14 @@ func SimVarStructBodyRotationVelocity() SimVar {
 }
 
 // SimVarStructWorldAcceleration Simvar
-func SimVarStructWorldAcceleration() SimVar {
+// args contain optional index
+func SimVarStructWorldAcceleration(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT WORLD ACCELERATION",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -779,8 +1323,14 @@ func SimVarStructWorldAcceleration() SimVar {
 }
 
 // SimVarStructEnginePosition Simvar
-func SimVarStructEnginePosition() SimVar {
+// args contain optional index
+func SimVarStructEnginePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT ENGINE POSITION:index",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -788,8 +1338,14 @@ func SimVarStructEnginePosition() SimVar {
 }
 
 // SimVarStructEyepointDynamicAngle Simvar
-func SimVarStructEyepointDynamicAngle() SimVar {
+// args contain optional index
+func SimVarStructEyepointDynamicAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT EYEPOINT DYNAMIC ANGLE",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -797,8 +1353,14 @@ func SimVarStructEyepointDynamicAngle() SimVar {
 }
 
 // SimVarStructEyepointDynamicOffset Simvar
-func SimVarStructEyepointDynamicOffset() SimVar {
+// args contain optional index
+func SimVarStructEyepointDynamicOffset(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCT EYEPOINT DYNAMIC OFFSET",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -806,8 +1368,14 @@ func SimVarStructEyepointDynamicOffset() SimVar {
 }
 
 // SimVarEyepointPosition Simvar
-func SimVarEyepointPosition() SimVar {
+// args contain optional index
+func SimVarEyepointPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EYEPOINT POSITION",
 		Units:    "SIMCONNECT_DATA_XYZ",
 		Settable: false,
@@ -815,8 +1383,14 @@ func SimVarEyepointPosition() SimVar {
 }
 
 // SimVarFlyByWireElacSwitch Simvar
-func SimVarFlyByWireElacSwitch() SimVar {
+// args contain optional index
+func SimVarFlyByWireElacSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE ELAC SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -824,8 +1398,14 @@ func SimVarFlyByWireElacSwitch() SimVar {
 }
 
 // SimVarFlyByWireFacSwitch Simvar
-func SimVarFlyByWireFacSwitch() SimVar {
+// args contain optional index
+func SimVarFlyByWireFacSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE FAC SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -833,8 +1413,14 @@ func SimVarFlyByWireFacSwitch() SimVar {
 }
 
 // SimVarFlyByWireSecSwitch Simvar
-func SimVarFlyByWireSecSwitch() SimVar {
+// args contain optional index
+func SimVarFlyByWireSecSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE SEC SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -842,8 +1428,14 @@ func SimVarFlyByWireSecSwitch() SimVar {
 }
 
 // SimVarFlyByWireElacFailed Simvar
-func SimVarFlyByWireElacFailed() SimVar {
+// args contain optional index
+func SimVarFlyByWireElacFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE ELAC FAILED",
 		Units:    "Bool",
 		Settable: false,
@@ -851,8 +1443,14 @@ func SimVarFlyByWireElacFailed() SimVar {
 }
 
 // SimVarFlyByWireFacFailed Simvar
-func SimVarFlyByWireFacFailed() SimVar {
+// args contain optional index
+func SimVarFlyByWireFacFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE FAC FAILED",
 		Units:    "Bool",
 		Settable: false,
@@ -860,8 +1458,14 @@ func SimVarFlyByWireFacFailed() SimVar {
 }
 
 // SimVarFlyByWireSecFailed Simvar
-func SimVarFlyByWireSecFailed() SimVar {
+// args contain optional index
+func SimVarFlyByWireSecFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLY BY WIRE SEC FAILED",
 		Units:    "Bool",
 		Settable: false,
@@ -869,8 +1473,14 @@ func SimVarFlyByWireSecFailed() SimVar {
 }
 
 // SimVarNumberOfEngines Simvar
-func SimVarNumberOfEngines() SimVar {
+// args contain optional index
+func SimVarNumberOfEngines(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NUMBER OF ENGINES",
 		Units:    "Number",
 		Settable: false,
@@ -878,8 +1488,14 @@ func SimVarNumberOfEngines() SimVar {
 }
 
 // SimVarEngineControlSelect Simvar
-func SimVarEngineControlSelect() SimVar {
+// args contain optional index
+func SimVarEngineControlSelect(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENGINE CONTROL SELECT",
 		Units:    "Mask",
 		Settable: true,
@@ -887,8 +1503,14 @@ func SimVarEngineControlSelect() SimVar {
 }
 
 // SimVarThrottleLowerLimit Simvar
-func SimVarThrottleLowerLimit() SimVar {
+// args contain optional index
+func SimVarThrottleLowerLimit(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "THROTTLE LOWER LIMIT",
 		Units:    "Percent",
 		Settable: false,
@@ -896,8 +1518,14 @@ func SimVarThrottleLowerLimit() SimVar {
 }
 
 // SimVarEngineType Simvar
-func SimVarEngineType() SimVar {
+// args contain optional index
+func SimVarEngineType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENGINE TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -905,8 +1533,14 @@ func SimVarEngineType() SimVar {
 }
 
 // SimVarMasterIgnitionSwitch Simvar
-func SimVarMasterIgnitionSwitch() SimVar {
+// args contain optional index
+func SimVarMasterIgnitionSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MASTER IGNITION SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -914,8 +1548,14 @@ func SimVarMasterIgnitionSwitch() SimVar {
 }
 
 // SimVarGeneralEngCombustion Simvar
-func SimVarGeneralEngCombustion() SimVar {
+// args contain optional index
+func SimVarGeneralEngCombustion(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG COMBUSTION:index",
 		Units:    "Bool",
 		Settable: true,
@@ -923,8 +1563,14 @@ func SimVarGeneralEngCombustion() SimVar {
 }
 
 // SimVarGeneralEngMasterAlternator Simvar
-func SimVarGeneralEngMasterAlternator() SimVar {
+// args contain optional index
+func SimVarGeneralEngMasterAlternator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG MASTER ALTERNATOR:index",
 		Units:    "Bool",
 		Settable: false,
@@ -932,8 +1578,14 @@ func SimVarGeneralEngMasterAlternator() SimVar {
 }
 
 // SimVarGeneralEngFuelPumpSwitch Simvar
-func SimVarGeneralEngFuelPumpSwitch() SimVar {
+// args contain optional index
+func SimVarGeneralEngFuelPumpSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FUEL PUMP SWITCH:index",
 		Units:    "Bool",
 		Settable: false,
@@ -941,8 +1593,14 @@ func SimVarGeneralEngFuelPumpSwitch() SimVar {
 }
 
 // SimVarGeneralEngFuelPumpOn Simvar
-func SimVarGeneralEngFuelPumpOn() SimVar {
+// args contain optional index
+func SimVarGeneralEngFuelPumpOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FUEL PUMP ON:index",
 		Units:    "Bool",
 		Settable: false,
@@ -950,8 +1608,14 @@ func SimVarGeneralEngFuelPumpOn() SimVar {
 }
 
 // SimVarGeneralEngRpm Simvar
-func SimVarGeneralEngRpm() SimVar {
+// args contain optional index
+func SimVarGeneralEngRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG RPM:index",
 		Units:    "Rpm",
 		Settable: false,
@@ -959,8 +1623,14 @@ func SimVarGeneralEngRpm() SimVar {
 }
 
 // SimVarGeneralEngPctMaxRpm Simvar
-func SimVarGeneralEngPctMaxRpm() SimVar {
+// args contain optional index
+func SimVarGeneralEngPctMaxRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG PCT MAX RPM:index",
 		Units:    "Percent",
 		Settable: false,
@@ -968,8 +1638,14 @@ func SimVarGeneralEngPctMaxRpm() SimVar {
 }
 
 // SimVarGeneralEngMaxReachedRpm Simvar
-func SimVarGeneralEngMaxReachedRpm() SimVar {
+// args contain optional index
+func SimVarGeneralEngMaxReachedRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG MAX REACHED RPM:index",
 		Units:    "Rpm",
 		Settable: false,
@@ -977,8 +1653,14 @@ func SimVarGeneralEngMaxReachedRpm() SimVar {
 }
 
 // SimVarGeneralEngThrottleLeverPosition Simvar
-func SimVarGeneralEngThrottleLeverPosition() SimVar {
+// args contain optional index
+func SimVarGeneralEngThrottleLeverPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG THROTTLE LEVER POSITION:index",
 		Units:    "Percent",
 		Settable: true,
@@ -986,8 +1668,14 @@ func SimVarGeneralEngThrottleLeverPosition() SimVar {
 }
 
 // SimVarGeneralEngMixtureLeverPosition Simvar
-func SimVarGeneralEngMixtureLeverPosition() SimVar {
+// args contain optional index
+func SimVarGeneralEngMixtureLeverPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG MIXTURE LEVER POSITION:index",
 		Units:    "Percent",
 		Settable: true,
@@ -995,8 +1683,14 @@ func SimVarGeneralEngMixtureLeverPosition() SimVar {
 }
 
 // SimVarGeneralEngPropellerLeverPosition Simvar
-func SimVarGeneralEngPropellerLeverPosition() SimVar {
+// args contain optional index
+func SimVarGeneralEngPropellerLeverPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG PROPELLER LEVER POSITION:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1004,8 +1698,14 @@ func SimVarGeneralEngPropellerLeverPosition() SimVar {
 }
 
 // SimVarGeneralEngStarter Simvar
-func SimVarGeneralEngStarter() SimVar {
+// args contain optional index
+func SimVarGeneralEngStarter(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG STARTER:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1013,8 +1713,14 @@ func SimVarGeneralEngStarter() SimVar {
 }
 
 // SimVarGeneralEngExhaustGasTemperature Simvar
-func SimVarGeneralEngExhaustGasTemperature() SimVar {
+// args contain optional index
+func SimVarGeneralEngExhaustGasTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG EXHAUST GAS TEMPERATURE:index",
 		Units:    "Rankine",
 		Settable: true,
@@ -1022,8 +1728,14 @@ func SimVarGeneralEngExhaustGasTemperature() SimVar {
 }
 
 // SimVarGeneralEngOilPressure Simvar
-func SimVarGeneralEngOilPressure() SimVar {
+// args contain optional index
+func SimVarGeneralEngOilPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG OIL PRESSURE:index",
 		Units:    "Psi",
 		Settable: true,
@@ -1031,8 +1743,14 @@ func SimVarGeneralEngOilPressure() SimVar {
 }
 
 // SimVarGeneralEngOilLeakedPercent Simvar
-func SimVarGeneralEngOilLeakedPercent() SimVar {
+// args contain optional index
+func SimVarGeneralEngOilLeakedPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG OIL LEAKED PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1040,8 +1758,14 @@ func SimVarGeneralEngOilLeakedPercent() SimVar {
 }
 
 // SimVarGeneralEngCombustionSoundPercent Simvar
-func SimVarGeneralEngCombustionSoundPercent() SimVar {
+// args contain optional index
+func SimVarGeneralEngCombustionSoundPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG COMBUSTION SOUND PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1049,8 +1773,14 @@ func SimVarGeneralEngCombustionSoundPercent() SimVar {
 }
 
 // SimVarGeneralEngDamagePercent Simvar
-func SimVarGeneralEngDamagePercent() SimVar {
+// args contain optional index
+func SimVarGeneralEngDamagePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG DAMAGE PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1058,8 +1788,14 @@ func SimVarGeneralEngDamagePercent() SimVar {
 }
 
 // SimVarGeneralEngOilTemperature Simvar
-func SimVarGeneralEngOilTemperature() SimVar {
+// args contain optional index
+func SimVarGeneralEngOilTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG OIL TEMPERATURE:index",
 		Units:    "Rankine",
 		Settable: true,
@@ -1067,8 +1803,14 @@ func SimVarGeneralEngOilTemperature() SimVar {
 }
 
 // SimVarGeneralEngFailed Simvar
-func SimVarGeneralEngFailed() SimVar {
+// args contain optional index
+func SimVarGeneralEngFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FAILED:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1076,8 +1818,14 @@ func SimVarGeneralEngFailed() SimVar {
 }
 
 // SimVarGeneralEngGeneratorSwitch Simvar
-func SimVarGeneralEngGeneratorSwitch() SimVar {
+// args contain optional index
+func SimVarGeneralEngGeneratorSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG GENERATOR SWITCH:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1085,8 +1833,14 @@ func SimVarGeneralEngGeneratorSwitch() SimVar {
 }
 
 // SimVarGeneralEngGeneratorActive Simvar
-func SimVarGeneralEngGeneratorActive() SimVar {
+// args contain optional index
+func SimVarGeneralEngGeneratorActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG GENERATOR ACTIVE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1094,8 +1848,14 @@ func SimVarGeneralEngGeneratorActive() SimVar {
 }
 
 // SimVarGeneralEngAntiIcePosition Simvar
-func SimVarGeneralEngAntiIcePosition() SimVar {
+// args contain optional index
+func SimVarGeneralEngAntiIcePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG ANTI ICE POSITION:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1103,8 +1863,14 @@ func SimVarGeneralEngAntiIcePosition() SimVar {
 }
 
 // SimVarGeneralEngFuelValve Simvar
-func SimVarGeneralEngFuelValve() SimVar {
+// args contain optional index
+func SimVarGeneralEngFuelValve(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FUEL VALVE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1112,8 +1878,14 @@ func SimVarGeneralEngFuelValve() SimVar {
 }
 
 // SimVarGeneralEngFuelPressure Simvar
-func SimVarGeneralEngFuelPressure() SimVar {
+// args contain optional index
+func SimVarGeneralEngFuelPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FUEL PRESSURE:index",
 		Units:    "Psi",
 		Settable: true,
@@ -1121,8 +1893,14 @@ func SimVarGeneralEngFuelPressure() SimVar {
 }
 
 // SimVarGeneralEngElapsedTime Simvar
-func SimVarGeneralEngElapsedTime() SimVar {
+// args contain optional index
+func SimVarGeneralEngElapsedTime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG ELAPSED TIME:index",
 		Units:    "Hours",
 		Settable: false,
@@ -1130,8 +1908,14 @@ func SimVarGeneralEngElapsedTime() SimVar {
 }
 
 // SimVarRecipEngCowlFlapPosition Simvar
-func SimVarRecipEngCowlFlapPosition() SimVar {
+// args contain optional index
+func SimVarRecipEngCowlFlapPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG COWL FLAP POSITION:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1139,8 +1923,14 @@ func SimVarRecipEngCowlFlapPosition() SimVar {
 }
 
 // SimVarRecipEngPrimer Simvar
-func SimVarRecipEngPrimer() SimVar {
+// args contain optional index
+func SimVarRecipEngPrimer(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG PRIMER:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1148,8 +1938,14 @@ func SimVarRecipEngPrimer() SimVar {
 }
 
 // SimVarRecipEngManifoldPressure Simvar
-func SimVarRecipEngManifoldPressure() SimVar {
+// args contain optional index
+func SimVarRecipEngManifoldPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG MANIFOLD PRESSURE:index",
 		Units:    "Psi",
 		Settable: true,
@@ -1157,8 +1953,14 @@ func SimVarRecipEngManifoldPressure() SimVar {
 }
 
 // SimVarRecipEngAlternateAirPosition Simvar
-func SimVarRecipEngAlternateAirPosition() SimVar {
+// args contain optional index
+func SimVarRecipEngAlternateAirPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG ALTERNATE AIR POSITION:index",
 		Units:    "Position",
 		Settable: true,
@@ -1166,8 +1968,14 @@ func SimVarRecipEngAlternateAirPosition() SimVar {
 }
 
 // SimVarRecipEngCoolantReservoirPercent Simvar
-func SimVarRecipEngCoolantReservoirPercent() SimVar {
+// args contain optional index
+func SimVarRecipEngCoolantReservoirPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG COOLANT RESERVOIR PERCENT:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1175,8 +1983,14 @@ func SimVarRecipEngCoolantReservoirPercent() SimVar {
 }
 
 // SimVarRecipEngLeftMagneto Simvar
-func SimVarRecipEngLeftMagneto() SimVar {
+// args contain optional index
+func SimVarRecipEngLeftMagneto(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG LEFT MAGNETO:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1184,8 +1998,14 @@ func SimVarRecipEngLeftMagneto() SimVar {
 }
 
 // SimVarRecipEngRightMagneto Simvar
-func SimVarRecipEngRightMagneto() SimVar {
+// args contain optional index
+func SimVarRecipEngRightMagneto(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG RIGHT MAGNETO:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1193,8 +2013,14 @@ func SimVarRecipEngRightMagneto() SimVar {
 }
 
 // SimVarRecipEngBrakePower Simvar
-func SimVarRecipEngBrakePower() SimVar {
+// args contain optional index
+func SimVarRecipEngBrakePower(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG BRAKE POWER:index",
 		Units:    "ft lb per second",
 		Settable: true,
@@ -1202,8 +2028,14 @@ func SimVarRecipEngBrakePower() SimVar {
 }
 
 // SimVarRecipEngStarterTorque Simvar
-func SimVarRecipEngStarterTorque() SimVar {
+// args contain optional index
+func SimVarRecipEngStarterTorque(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG STARTER TORQUE:index",
 		Units:    "Foot pound",
 		Settable: true,
@@ -1211,8 +2043,14 @@ func SimVarRecipEngStarterTorque() SimVar {
 }
 
 // SimVarRecipEngTurbochargerFailed Simvar
-func SimVarRecipEngTurbochargerFailed() SimVar {
+// args contain optional index
+func SimVarRecipEngTurbochargerFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG TURBOCHARGER FAILED:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1220,8 +2058,14 @@ func SimVarRecipEngTurbochargerFailed() SimVar {
 }
 
 // SimVarRecipEngEmergencyBoostActive Simvar
-func SimVarRecipEngEmergencyBoostActive() SimVar {
+// args contain optional index
+func SimVarRecipEngEmergencyBoostActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG EMERGENCY BOOST ACTIVE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1229,8 +2073,14 @@ func SimVarRecipEngEmergencyBoostActive() SimVar {
 }
 
 // SimVarRecipEngEmergencyBoostElapsedTime Simvar
-func SimVarRecipEngEmergencyBoostElapsedTime() SimVar {
+// args contain optional index
+func SimVarRecipEngEmergencyBoostElapsedTime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG EMERGENCY BOOST ELAPSED TIME:index",
 		Units:    "Hours",
 		Settable: true,
@@ -1238,8 +2088,14 @@ func SimVarRecipEngEmergencyBoostElapsedTime() SimVar {
 }
 
 // SimVarRecipEngWastegatePosition Simvar
-func SimVarRecipEngWastegatePosition() SimVar {
+// args contain optional index
+func SimVarRecipEngWastegatePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG WASTEGATE POSITION:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1247,8 +2103,14 @@ func SimVarRecipEngWastegatePosition() SimVar {
 }
 
 // SimVarRecipEngTurbineInletTemperature Simvar
-func SimVarRecipEngTurbineInletTemperature() SimVar {
+// args contain optional index
+func SimVarRecipEngTurbineInletTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG TURBINE INLET TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: true,
@@ -1256,8 +2118,14 @@ func SimVarRecipEngTurbineInletTemperature() SimVar {
 }
 
 // SimVarRecipEngCylinderHeadTemperature Simvar
-func SimVarRecipEngCylinderHeadTemperature() SimVar {
+// args contain optional index
+func SimVarRecipEngCylinderHeadTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG CYLINDER HEAD TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: true,
@@ -1265,8 +2133,14 @@ func SimVarRecipEngCylinderHeadTemperature() SimVar {
 }
 
 // SimVarRecipEngRadiatorTemperature Simvar
-func SimVarRecipEngRadiatorTemperature() SimVar {
+// args contain optional index
+func SimVarRecipEngRadiatorTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG RADIATOR TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: true,
@@ -1274,8 +2148,14 @@ func SimVarRecipEngRadiatorTemperature() SimVar {
 }
 
 // SimVarRecipEngFuelAvailable Simvar
-func SimVarRecipEngFuelAvailable() SimVar {
+// args contain optional index
+func SimVarRecipEngFuelAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG FUEL AVAILABLE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1283,8 +2163,14 @@ func SimVarRecipEngFuelAvailable() SimVar {
 }
 
 // SimVarRecipEngFuelFlow Simvar
-func SimVarRecipEngFuelFlow() SimVar {
+// args contain optional index
+func SimVarRecipEngFuelFlow(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG FUEL FLOW:index",
 		Units:    "Pounds per hour",
 		Settable: true,
@@ -1292,8 +2178,14 @@ func SimVarRecipEngFuelFlow() SimVar {
 }
 
 // SimVarRecipEngFuelTankSelector Simvar
-func SimVarRecipEngFuelTankSelector() SimVar {
+// args contain optional index
+func SimVarRecipEngFuelTankSelector(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG FUEL TANK SELECTOR:index",
 		Units:    "Enum",
 		Settable: false,
@@ -1301,8 +2193,14 @@ func SimVarRecipEngFuelTankSelector() SimVar {
 }
 
 // SimVarRecipEngFuelTanksUsed Simvar
-func SimVarRecipEngFuelTanksUsed() SimVar {
+// args contain optional index
+func SimVarRecipEngFuelTanksUsed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG FUEL TANKS USED:index",
 		Units:    "Mask",
 		Settable: true,
@@ -1310,8 +2208,14 @@ func SimVarRecipEngFuelTanksUsed() SimVar {
 }
 
 // SimVarRecipEngFuelNumberTanksUsed Simvar
-func SimVarRecipEngFuelNumberTanksUsed() SimVar {
+// args contain optional index
+func SimVarRecipEngFuelNumberTanksUsed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP ENG FUEL NUMBER TANKS USED:index",
 		Units:    "Number",
 		Settable: false,
@@ -1319,8 +2223,14 @@ func SimVarRecipEngFuelNumberTanksUsed() SimVar {
 }
 
 // SimVarRecipCarburetorTemperature Simvar
-func SimVarRecipCarburetorTemperature() SimVar {
+// args contain optional index
+func SimVarRecipCarburetorTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP CARBURETOR TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: true,
@@ -1328,8 +2238,14 @@ func SimVarRecipCarburetorTemperature() SimVar {
 }
 
 // SimVarRecipMixtureRatio Simvar
-func SimVarRecipMixtureRatio() SimVar {
+// args contain optional index
+func SimVarRecipMixtureRatio(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RECIP MIXTURE RATIO:index",
 		Units:    "Ratio",
 		Settable: true,
@@ -1337,8 +2253,13 @@ func SimVarRecipMixtureRatio() SimVar {
 }
 
 // SimVarTurbEngN1 Simvar
-func SimVarTurbEngN1() SimVar {
+func SimVarTurbEngN1(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG N1:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1346,8 +2267,13 @@ func SimVarTurbEngN1() SimVar {
 }
 
 // SimVarTurbEngN2 Simvar
-func SimVarTurbEngN2() SimVar {
+func SimVarTurbEngN2(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG N2:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1355,8 +2281,13 @@ func SimVarTurbEngN2() SimVar {
 }
 
 // SimVarTurbEngCorrectedN1 Simvar
-func SimVarTurbEngCorrectedN1() SimVar {
+func SimVarTurbEngCorrectedN1(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG CORRECTED N1:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1364,8 +2295,13 @@ func SimVarTurbEngCorrectedN1() SimVar {
 }
 
 // SimVarTurbEngCorrectedN2 Simvar
-func SimVarTurbEngCorrectedN2() SimVar {
+func SimVarTurbEngCorrectedN2(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG CORRECTED N2:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1373,8 +2309,14 @@ func SimVarTurbEngCorrectedN2() SimVar {
 }
 
 // SimVarTurbEngCorrectedFf Simvar
-func SimVarTurbEngCorrectedFf() SimVar {
+// args contain optional index
+func SimVarTurbEngCorrectedFf(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG CORRECTED FF:index",
 		Units:    "Pounds per hour",
 		Settable: true,
@@ -1382,8 +2324,14 @@ func SimVarTurbEngCorrectedFf() SimVar {
 }
 
 // SimVarTurbEngMaxTorquePercent Simvar
-func SimVarTurbEngMaxTorquePercent() SimVar {
+// args contain optional index
+func SimVarTurbEngMaxTorquePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG MAX TORQUE PERCENT:index",
 		Units:    "Percent",
 		Settable: true,
@@ -1391,8 +2339,14 @@ func SimVarTurbEngMaxTorquePercent() SimVar {
 }
 
 // SimVarTurbEngPressureRatio Simvar
-func SimVarTurbEngPressureRatio() SimVar {
+// args contain optional index
+func SimVarTurbEngPressureRatio(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG PRESSURE RATIO:index",
 		Units:    "Ratio",
 		Settable: true,
@@ -1400,8 +2354,14 @@ func SimVarTurbEngPressureRatio() SimVar {
 }
 
 // SimVarTurbEngItt Simvar
-func SimVarTurbEngItt() SimVar {
+// args contain optional index
+func SimVarTurbEngItt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG ITT:index",
 		Units:    "Rankine",
 		Settable: true,
@@ -1409,8 +2369,14 @@ func SimVarTurbEngItt() SimVar {
 }
 
 // SimVarTurbEngAfterburner Simvar
-func SimVarTurbEngAfterburner() SimVar {
+// args contain optional index
+func SimVarTurbEngAfterburner(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG AFTERBURNER:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1418,8 +2384,14 @@ func SimVarTurbEngAfterburner() SimVar {
 }
 
 // SimVarTurbEngJetThrust Simvar
-func SimVarTurbEngJetThrust() SimVar {
+// args contain optional index
+func SimVarTurbEngJetThrust(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG JET THRUST:index",
 		Units:    "Pounds",
 		Settable: false,
@@ -1427,8 +2399,14 @@ func SimVarTurbEngJetThrust() SimVar {
 }
 
 // SimVarTurbEngBleedAir Simvar
-func SimVarTurbEngBleedAir() SimVar {
+// args contain optional index
+func SimVarTurbEngBleedAir(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG BLEED AIR:index",
 		Units:    "Psi",
 		Settable: false,
@@ -1436,8 +2414,14 @@ func SimVarTurbEngBleedAir() SimVar {
 }
 
 // SimVarTurbEngTankSelector Simvar
-func SimVarTurbEngTankSelector() SimVar {
+// args contain optional index
+func SimVarTurbEngTankSelector(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG TANK SELECTOR:index",
 		Units:    "Enum",
 		Settable: false,
@@ -1445,8 +2429,14 @@ func SimVarTurbEngTankSelector() SimVar {
 }
 
 // SimVarTurbEngTanksUsed Simvar
-func SimVarTurbEngTanksUsed() SimVar {
+// args contain optional index
+func SimVarTurbEngTanksUsed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG TANKS USED:index",
 		Units:    "Mask",
 		Settable: false,
@@ -1454,8 +2444,14 @@ func SimVarTurbEngTanksUsed() SimVar {
 }
 
 // SimVarTurbEngNumTanksUsed Simvar
-func SimVarTurbEngNumTanksUsed() SimVar {
+// args contain optional index
+func SimVarTurbEngNumTanksUsed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG NUM TANKS USED:index",
 		Units:    "Number",
 		Settable: false,
@@ -1463,8 +2459,14 @@ func SimVarTurbEngNumTanksUsed() SimVar {
 }
 
 // SimVarTurbEngFuelFlowPph Simvar
-func SimVarTurbEngFuelFlowPph() SimVar {
+// args contain optional index
+func SimVarTurbEngFuelFlowPph(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG FUEL FLOW PPH:index",
 		Units:    "Pounds per hour",
 		Settable: false,
@@ -1472,8 +2474,14 @@ func SimVarTurbEngFuelFlowPph() SimVar {
 }
 
 // SimVarTurbEngFuelAvailable Simvar
-func SimVarTurbEngFuelAvailable() SimVar {
+// args contain optional index
+func SimVarTurbEngFuelAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG FUEL AVAILABLE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1481,8 +2489,14 @@ func SimVarTurbEngFuelAvailable() SimVar {
 }
 
 // SimVarTurbEngReverseNozzlePercent Simvar
-func SimVarTurbEngReverseNozzlePercent() SimVar {
+// args contain optional index
+func SimVarTurbEngReverseNozzlePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG REVERSE NOZZLE PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1490,8 +2504,14 @@ func SimVarTurbEngReverseNozzlePercent() SimVar {
 }
 
 // SimVarTurbEngVibration Simvar
-func SimVarTurbEngVibration() SimVar {
+// args contain optional index
+func SimVarTurbEngVibration(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG VIBRATION:index",
 		Units:    "Number",
 		Settable: false,
@@ -1499,8 +2519,14 @@ func SimVarTurbEngVibration() SimVar {
 }
 
 // SimVarEngFailed Simvar
-func SimVarEngFailed() SimVar {
+// args contain optional index
+func SimVarEngFailed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG FAILED:index",
 		Units:    "Number",
 		Settable: false,
@@ -1508,8 +2534,14 @@ func SimVarEngFailed() SimVar {
 }
 
 // SimVarEngRpmAnimationPercent Simvar
-func SimVarEngRpmAnimationPercent() SimVar {
+// args contain optional index
+func SimVarEngRpmAnimationPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG RPM ANIMATION PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1517,8 +2549,14 @@ func SimVarEngRpmAnimationPercent() SimVar {
 }
 
 // SimVarEngOnFire Simvar
-func SimVarEngOnFire() SimVar {
+// args contain optional index
+func SimVarEngOnFire(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG ON FIRE:index",
 		Units:    "Bool",
 		Settable: true,
@@ -1526,8 +2564,14 @@ func SimVarEngOnFire() SimVar {
 }
 
 // SimVarEngFuelFlowBugPosition Simvar
-func SimVarEngFuelFlowBugPosition() SimVar {
+// args contain optional index
+func SimVarEngFuelFlowBugPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG FUEL FLOW BUG POSITION:index",
 		Units:    "Pounds per hour",
 		Settable: false,
@@ -1535,8 +2579,14 @@ func SimVarEngFuelFlowBugPosition() SimVar {
 }
 
 // SimVarPropRpm Simvar
-func SimVarPropRpm() SimVar {
+// args contain optional index
+func SimVarPropRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP RPM:index",
 		Units:    "Rpm",
 		Settable: true,
@@ -1544,8 +2594,14 @@ func SimVarPropRpm() SimVar {
 }
 
 // SimVarPropMaxRpmPercent Simvar
-func SimVarPropMaxRpmPercent() SimVar {
+// args contain optional index
+func SimVarPropMaxRpmPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP MAX RPM PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1553,8 +2609,14 @@ func SimVarPropMaxRpmPercent() SimVar {
 }
 
 // SimVarPropThrust Simvar
-func SimVarPropThrust() SimVar {
+// args contain optional index
+func SimVarPropThrust(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP THRUST:index",
 		Units:    "Pounds",
 		Settable: false,
@@ -1562,8 +2624,14 @@ func SimVarPropThrust() SimVar {
 }
 
 // SimVarPropBeta Simvar
-func SimVarPropBeta() SimVar {
+// args contain optional index
+func SimVarPropBeta(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP BETA:index",
 		Units:    "Radians",
 		Settable: false,
@@ -1571,8 +2639,14 @@ func SimVarPropBeta() SimVar {
 }
 
 // SimVarPropFeatheringInhibit Simvar
-func SimVarPropFeatheringInhibit() SimVar {
+// args contain optional index
+func SimVarPropFeatheringInhibit(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP FEATHERING INHIBIT:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1580,8 +2654,14 @@ func SimVarPropFeatheringInhibit() SimVar {
 }
 
 // SimVarPropFeathered Simvar
-func SimVarPropFeathered() SimVar {
+// args contain optional index
+func SimVarPropFeathered(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP FEATHERED:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1589,8 +2669,14 @@ func SimVarPropFeathered() SimVar {
 }
 
 // SimVarPropSyncDeltaLever Simvar
-func SimVarPropSyncDeltaLever() SimVar {
+// args contain optional index
+func SimVarPropSyncDeltaLever(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP SYNC DELTA LEVER:index",
 		Units:    "Position",
 		Settable: false,
@@ -1598,8 +2684,14 @@ func SimVarPropSyncDeltaLever() SimVar {
 }
 
 // SimVarPropAutoFeatherArmed Simvar
-func SimVarPropAutoFeatherArmed() SimVar {
+// args contain optional index
+func SimVarPropAutoFeatherArmed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP AUTO FEATHER ARMED:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1607,8 +2699,14 @@ func SimVarPropAutoFeatherArmed() SimVar {
 }
 
 // SimVarPropFeatherSwitch Simvar
-func SimVarPropFeatherSwitch() SimVar {
+// args contain optional index
+func SimVarPropFeatherSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP FEATHER SWITCH:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1616,8 +2714,14 @@ func SimVarPropFeatherSwitch() SimVar {
 }
 
 // SimVarPanelAutoFeatherSwitch Simvar
-func SimVarPanelAutoFeatherSwitch() SimVar {
+// args contain optional index
+func SimVarPanelAutoFeatherSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PANEL AUTO FEATHER SWITCH:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1625,8 +2729,14 @@ func SimVarPanelAutoFeatherSwitch() SimVar {
 }
 
 // SimVarPropSyncActive Simvar
-func SimVarPropSyncActive() SimVar {
+// args contain optional index
+func SimVarPropSyncActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP SYNC ACTIVE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1634,8 +2744,14 @@ func SimVarPropSyncActive() SimVar {
 }
 
 // SimVarPropDeiceSwitch Simvar
-func SimVarPropDeiceSwitch() SimVar {
+// args contain optional index
+func SimVarPropDeiceSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP DEICE SWITCH:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1643,8 +2759,14 @@ func SimVarPropDeiceSwitch() SimVar {
 }
 
 // SimVarEngCombustion Simvar
-func SimVarEngCombustion() SimVar {
+// args contain optional index
+func SimVarEngCombustion(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG COMBUSTION",
 		Units:    "Bool",
 		Settable: false,
@@ -1652,8 +2774,13 @@ func SimVarEngCombustion() SimVar {
 }
 
 // SimVarEngN1Rpm Simvar
-func SimVarEngN1Rpm() SimVar {
+func SimVarEngN1Rpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG N1 RPM:index",
 		Units:    "Rpm",
 		Settable: false,
@@ -1661,8 +2788,13 @@ func SimVarEngN1Rpm() SimVar {
 }
 
 // SimVarEngN2Rpm Simvar
-func SimVarEngN2Rpm() SimVar {
+func SimVarEngN2Rpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG N2 RPM:index",
 		Units:    "Rpm",
 		Settable: false,
@@ -1670,8 +2802,14 @@ func SimVarEngN2Rpm() SimVar {
 }
 
 // SimVarEngFuelFlowPph Simvar
-func SimVarEngFuelFlowPph() SimVar {
+// args contain optional index
+func SimVarEngFuelFlowPph(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG FUEL FLOW PPH:index",
 		Units:    "Pounds per hour",
 		Settable: false,
@@ -1679,8 +2817,14 @@ func SimVarEngFuelFlowPph() SimVar {
 }
 
 // SimVarEngTorque Simvar
-func SimVarEngTorque() SimVar {
+// args contain optional index
+func SimVarEngTorque(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG TORQUE:index",
 		Units:    "Foot pounds",
 		Settable: false,
@@ -1688,8 +2832,14 @@ func SimVarEngTorque() SimVar {
 }
 
 // SimVarEngAntiIce Simvar
-func SimVarEngAntiIce() SimVar {
+// args contain optional index
+func SimVarEngAntiIce(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG ANTI ICE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -1697,8 +2847,14 @@ func SimVarEngAntiIce() SimVar {
 }
 
 // SimVarEngPressureRatio Simvar
-func SimVarEngPressureRatio() SimVar {
+// args contain optional index
+func SimVarEngPressureRatio(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG PRESSURE RATIO:index",
 		Units:    "Ratio (0-16384)",
 		Settable: false,
@@ -1706,8 +2862,14 @@ func SimVarEngPressureRatio() SimVar {
 }
 
 // SimVarEngExhaustGasTemperature Simvar
-func SimVarEngExhaustGasTemperature() SimVar {
+// args contain optional index
+func SimVarEngExhaustGasTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG EXHAUST GAS TEMPERATURE:index",
 		Units:    "Rankine",
 		Settable: false,
@@ -1715,8 +2877,14 @@ func SimVarEngExhaustGasTemperature() SimVar {
 }
 
 // SimVarEngExhaustGasTemperatureGes Simvar
-func SimVarEngExhaustGasTemperatureGes() SimVar {
+// args contain optional index
+func SimVarEngExhaustGasTemperatureGes(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG EXHAUST GAS TEMPERATURE GES:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -1724,8 +2892,14 @@ func SimVarEngExhaustGasTemperatureGes() SimVar {
 }
 
 // SimVarEngCylinderHeadTemperature Simvar
-func SimVarEngCylinderHeadTemperature() SimVar {
+// args contain optional index
+func SimVarEngCylinderHeadTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG CYLINDER HEAD TEMPERATURE:index",
 		Units:    "Rankine",
 		Settable: false,
@@ -1733,8 +2907,14 @@ func SimVarEngCylinderHeadTemperature() SimVar {
 }
 
 // SimVarEngOilTemperature Simvar
-func SimVarEngOilTemperature() SimVar {
+// args contain optional index
+func SimVarEngOilTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG OIL TEMPERATURE:index",
 		Units:    "Rankine",
 		Settable: false,
@@ -1742,8 +2922,14 @@ func SimVarEngOilTemperature() SimVar {
 }
 
 // SimVarEngOilPressure Simvar
-func SimVarEngOilPressure() SimVar {
+// args contain optional index
+func SimVarEngOilPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG OIL PRESSURE:index",
 		Units:    "pound-force per square inch",
 		Settable: false,
@@ -1751,8 +2937,14 @@ func SimVarEngOilPressure() SimVar {
 }
 
 // SimVarEngOilQuantity Simvar
-func SimVarEngOilQuantity() SimVar {
+// args contain optional index
+func SimVarEngOilQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG OIL QUANTITY:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -1760,8 +2952,14 @@ func SimVarEngOilQuantity() SimVar {
 }
 
 // SimVarEngHydraulicPressure Simvar
-func SimVarEngHydraulicPressure() SimVar {
+// args contain optional index
+func SimVarEngHydraulicPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG HYDRAULIC PRESSURE:index",
 		Units:    "pound-force per square inch",
 		Settable: false,
@@ -1769,8 +2967,14 @@ func SimVarEngHydraulicPressure() SimVar {
 }
 
 // SimVarEngHydraulicQuantity Simvar
-func SimVarEngHydraulicQuantity() SimVar {
+// args contain optional index
+func SimVarEngHydraulicQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG HYDRAULIC QUANTITY:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -1778,8 +2982,14 @@ func SimVarEngHydraulicQuantity() SimVar {
 }
 
 // SimVarEngManifoldPressure Simvar
-func SimVarEngManifoldPressure() SimVar {
+// args contain optional index
+func SimVarEngManifoldPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG MANIFOLD PRESSURE:index",
 		Units:    "inHg",
 		Settable: false,
@@ -1787,8 +2997,14 @@ func SimVarEngManifoldPressure() SimVar {
 }
 
 // SimVarEngVibration Simvar
-func SimVarEngVibration() SimVar {
+// args contain optional index
+func SimVarEngVibration(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG VIBRATION:index",
 		Units:    "Number",
 		Settable: false,
@@ -1796,8 +3012,14 @@ func SimVarEngVibration() SimVar {
 }
 
 // SimVarEngRpmScaler Simvar
-func SimVarEngRpmScaler() SimVar {
+// args contain optional index
+func SimVarEngRpmScaler(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG RPM SCALER:index",
 		Units:    "Number",
 		Settable: false,
@@ -1805,8 +3027,14 @@ func SimVarEngRpmScaler() SimVar {
 }
 
 // SimVarEngTurbineTemperature Simvar
-func SimVarEngTurbineTemperature() SimVar {
+// args contain optional index
+func SimVarEngTurbineTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG TURBINE TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: false,
@@ -1814,8 +3042,14 @@ func SimVarEngTurbineTemperature() SimVar {
 }
 
 // SimVarEngTorquePercent Simvar
-func SimVarEngTorquePercent() SimVar {
+// args contain optional index
+func SimVarEngTorquePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG TORQUE PERCENT:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1823,8 +3057,14 @@ func SimVarEngTorquePercent() SimVar {
 }
 
 // SimVarEngFuelPressure Simvar
-func SimVarEngFuelPressure() SimVar {
+// args contain optional index
+func SimVarEngFuelPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG FUEL PRESSURE:index",
 		Units:    "PSI",
 		Settable: false,
@@ -1832,8 +3072,14 @@ func SimVarEngFuelPressure() SimVar {
 }
 
 // SimVarEngElectricalLoad Simvar
-func SimVarEngElectricalLoad() SimVar {
+// args contain optional index
+func SimVarEngElectricalLoad(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG ELECTRICAL LOAD:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1841,8 +3087,14 @@ func SimVarEngElectricalLoad() SimVar {
 }
 
 // SimVarEngTransmissionPressure Simvar
-func SimVarEngTransmissionPressure() SimVar {
+// args contain optional index
+func SimVarEngTransmissionPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG TRANSMISSION PRESSURE:index",
 		Units:    "PSI",
 		Settable: false,
@@ -1850,8 +3102,14 @@ func SimVarEngTransmissionPressure() SimVar {
 }
 
 // SimVarEngTransmissionTemperature Simvar
-func SimVarEngTransmissionTemperature() SimVar {
+// args contain optional index
+func SimVarEngTransmissionTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG TRANSMISSION TEMPERATURE:index",
 		Units:    "Celsius",
 		Settable: false,
@@ -1859,8 +3117,14 @@ func SimVarEngTransmissionTemperature() SimVar {
 }
 
 // SimVarEngRotorRpm Simvar
-func SimVarEngRotorRpm() SimVar {
+// args contain optional index
+func SimVarEngRotorRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG ROTOR RPM:index",
 		Units:    "Percent",
 		Settable: false,
@@ -1868,8 +3132,14 @@ func SimVarEngRotorRpm() SimVar {
 }
 
 // SimVarEngMaxRpm Simvar
-func SimVarEngMaxRpm() SimVar {
+// args contain optional index
+func SimVarEngMaxRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENG MAX RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -1877,8 +3147,14 @@ func SimVarEngMaxRpm() SimVar {
 }
 
 // SimVarGeneralEngStarterActive Simvar
-func SimVarGeneralEngStarterActive() SimVar {
+// args contain optional index
+func SimVarGeneralEngStarterActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG STARTER ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -1886,8 +3162,14 @@ func SimVarGeneralEngStarterActive() SimVar {
 }
 
 // SimVarGeneralEngFuelUsedSinceStart Simvar
-func SimVarGeneralEngFuelUsedSinceStart() SimVar {
+// args contain optional index
+func SimVarGeneralEngFuelUsedSinceStart(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GENERAL ENG FUEL USED SINCE START",
 		Units:    "Pounds",
 		Settable: false,
@@ -1895,8 +3177,14 @@ func SimVarGeneralEngFuelUsedSinceStart() SimVar {
 }
 
 // SimVarTurbEngPrimaryNozzlePercent Simvar
-func SimVarTurbEngPrimaryNozzlePercent() SimVar {
+// args contain optional index
+func SimVarTurbEngPrimaryNozzlePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG PRIMARY NOZZLE PERCENT:index",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -1904,8 +3192,14 @@ func SimVarTurbEngPrimaryNozzlePercent() SimVar {
 }
 
 // SimVarTurbEngIgnitionSwitch Simvar
-func SimVarTurbEngIgnitionSwitch() SimVar {
+// args contain optional index
+func SimVarTurbEngIgnitionSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG IGNITION SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -1913,8 +3207,14 @@ func SimVarTurbEngIgnitionSwitch() SimVar {
 }
 
 // SimVarTurbEngMasterStarterSwitch Simvar
-func SimVarTurbEngMasterStarterSwitch() SimVar {
+// args contain optional index
+func SimVarTurbEngMasterStarterSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURB ENG MASTER STARTER SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -1922,8 +3222,14 @@ func SimVarTurbEngMasterStarterSwitch() SimVar {
 }
 
 // SimVarFuelTankCenterLevel Simvar
-func SimVarFuelTankCenterLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankCenterLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1931,8 +3237,13 @@ func SimVarFuelTankCenterLevel() SimVar {
 }
 
 // SimVarFuelTankCenter2Level Simvar
-func SimVarFuelTankCenter2Level() SimVar {
+func SimVarFuelTankCenter2Level(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER2 LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1940,8 +3251,13 @@ func SimVarFuelTankCenter2Level() SimVar {
 }
 
 // SimVarFuelTankCenter3Level Simvar
-func SimVarFuelTankCenter3Level() SimVar {
+func SimVarFuelTankCenter3Level(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER3 LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1949,8 +3265,14 @@ func SimVarFuelTankCenter3Level() SimVar {
 }
 
 // SimVarFuelTankLeftMainLevel Simvar
-func SimVarFuelTankLeftMainLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftMainLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1958,8 +3280,14 @@ func SimVarFuelTankLeftMainLevel() SimVar {
 }
 
 // SimVarFuelTankLeftAuxLevel Simvar
-func SimVarFuelTankLeftAuxLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftAuxLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT AUX LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1967,8 +3295,14 @@ func SimVarFuelTankLeftAuxLevel() SimVar {
 }
 
 // SimVarFuelTankLeftTipLevel Simvar
-func SimVarFuelTankLeftTipLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftTipLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT TIP LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1976,8 +3310,14 @@ func SimVarFuelTankLeftTipLevel() SimVar {
 }
 
 // SimVarFuelTankRightMainLevel Simvar
-func SimVarFuelTankRightMainLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankRightMainLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1985,8 +3325,14 @@ func SimVarFuelTankRightMainLevel() SimVar {
 }
 
 // SimVarFuelTankRightAuxLevel Simvar
-func SimVarFuelTankRightAuxLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankRightAuxLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -1994,8 +3340,14 @@ func SimVarFuelTankRightAuxLevel() SimVar {
 }
 
 // SimVarFuelTankRightTipLevel Simvar
-func SimVarFuelTankRightTipLevel() SimVar {
+// args contain optional index
+func SimVarFuelTankRightTipLevel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -2003,8 +3355,13 @@ func SimVarFuelTankRightTipLevel() SimVar {
 }
 
 // SimVarFuelTankExternal1Level Simvar
-func SimVarFuelTankExternal1Level() SimVar {
+func SimVarFuelTankExternal1Level(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -2012,8 +3369,13 @@ func SimVarFuelTankExternal1Level() SimVar {
 }
 
 // SimVarFuelTankExternal2Level Simvar
-func SimVarFuelTankExternal2Level() SimVar {
+func SimVarFuelTankExternal2Level(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 LEVEL",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -2021,8 +3383,14 @@ func SimVarFuelTankExternal2Level() SimVar {
 }
 
 // SimVarFuelTankCenterCapacity Simvar
-func SimVarFuelTankCenterCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankCenterCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2030,8 +3398,13 @@ func SimVarFuelTankCenterCapacity() SimVar {
 }
 
 // SimVarFuelTankCenter2Capacity Simvar
-func SimVarFuelTankCenter2Capacity() SimVar {
+func SimVarFuelTankCenter2Capacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER2 CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2039,8 +3412,13 @@ func SimVarFuelTankCenter2Capacity() SimVar {
 }
 
 // SimVarFuelTankCenter3Capacity Simvar
-func SimVarFuelTankCenter3Capacity() SimVar {
+func SimVarFuelTankCenter3Capacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER3 CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2048,8 +3426,14 @@ func SimVarFuelTankCenter3Capacity() SimVar {
 }
 
 // SimVarFuelTankLeftMainCapacity Simvar
-func SimVarFuelTankLeftMainCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftMainCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2057,8 +3441,14 @@ func SimVarFuelTankLeftMainCapacity() SimVar {
 }
 
 // SimVarFuelTankLeftAuxCapacity Simvar
-func SimVarFuelTankLeftAuxCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftAuxCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT AUX CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2066,8 +3456,14 @@ func SimVarFuelTankLeftAuxCapacity() SimVar {
 }
 
 // SimVarFuelTankLeftTipCapacity Simvar
-func SimVarFuelTankLeftTipCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftTipCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT TIP CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2075,8 +3471,14 @@ func SimVarFuelTankLeftTipCapacity() SimVar {
 }
 
 // SimVarFuelTankRightMainCapacity Simvar
-func SimVarFuelTankRightMainCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightMainCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2084,8 +3486,14 @@ func SimVarFuelTankRightMainCapacity() SimVar {
 }
 
 // SimVarFuelTankRightAuxCapacity Simvar
-func SimVarFuelTankRightAuxCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightAuxCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2093,8 +3501,14 @@ func SimVarFuelTankRightAuxCapacity() SimVar {
 }
 
 // SimVarFuelTankRightTipCapacity Simvar
-func SimVarFuelTankRightTipCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightTipCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2102,8 +3516,13 @@ func SimVarFuelTankRightTipCapacity() SimVar {
 }
 
 // SimVarFuelTankExternal1Capacity Simvar
-func SimVarFuelTankExternal1Capacity() SimVar {
+func SimVarFuelTankExternal1Capacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2111,8 +3530,13 @@ func SimVarFuelTankExternal1Capacity() SimVar {
 }
 
 // SimVarFuelTankExternal2Capacity Simvar
-func SimVarFuelTankExternal2Capacity() SimVar {
+func SimVarFuelTankExternal2Capacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2120,8 +3544,14 @@ func SimVarFuelTankExternal2Capacity() SimVar {
 }
 
 // SimVarFuelLeftCapacity Simvar
-func SimVarFuelLeftCapacity() SimVar {
+// args contain optional index
+func SimVarFuelLeftCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL LEFT CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2129,8 +3559,14 @@ func SimVarFuelLeftCapacity() SimVar {
 }
 
 // SimVarFuelRightCapacity Simvar
-func SimVarFuelRightCapacity() SimVar {
+// args contain optional index
+func SimVarFuelRightCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL RIGHT CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2138,8 +3574,14 @@ func SimVarFuelRightCapacity() SimVar {
 }
 
 // SimVarFuelTankCenterQuantity Simvar
-func SimVarFuelTankCenterQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankCenterQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2147,8 +3589,13 @@ func SimVarFuelTankCenterQuantity() SimVar {
 }
 
 // SimVarFuelTankCenter2Quantity Simvar
-func SimVarFuelTankCenter2Quantity() SimVar {
+func SimVarFuelTankCenter2Quantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER2 QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2156,8 +3603,13 @@ func SimVarFuelTankCenter2Quantity() SimVar {
 }
 
 // SimVarFuelTankCenter3Quantity Simvar
-func SimVarFuelTankCenter3Quantity() SimVar {
+func SimVarFuelTankCenter3Quantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK CENTER3 QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2165,8 +3617,14 @@ func SimVarFuelTankCenter3Quantity() SimVar {
 }
 
 // SimVarFuelTankLeftMainQuantity Simvar
-func SimVarFuelTankLeftMainQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftMainQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2174,8 +3632,14 @@ func SimVarFuelTankLeftMainQuantity() SimVar {
 }
 
 // SimVarFuelTankLeftAuxQuantity Simvar
-func SimVarFuelTankLeftAuxQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftAuxQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT AUX QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2183,8 +3647,14 @@ func SimVarFuelTankLeftAuxQuantity() SimVar {
 }
 
 // SimVarFuelTankLeftTipQuantity Simvar
-func SimVarFuelTankLeftTipQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankLeftTipQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK LEFT TIP QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2192,8 +3662,14 @@ func SimVarFuelTankLeftTipQuantity() SimVar {
 }
 
 // SimVarFuelTankRightMainQuantity Simvar
-func SimVarFuelTankRightMainQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightMainQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2201,8 +3677,14 @@ func SimVarFuelTankRightMainQuantity() SimVar {
 }
 
 // SimVarFuelTankRightAuxQuantity Simvar
-func SimVarFuelTankRightAuxQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightAuxQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2210,8 +3692,14 @@ func SimVarFuelTankRightAuxQuantity() SimVar {
 }
 
 // SimVarFuelTankRightTipQuantity Simvar
-func SimVarFuelTankRightTipQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTankRightTipQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2219,8 +3707,13 @@ func SimVarFuelTankRightTipQuantity() SimVar {
 }
 
 // SimVarFuelTankExternal1Quantity Simvar
-func SimVarFuelTankExternal1Quantity() SimVar {
+func SimVarFuelTankExternal1Quantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2228,8 +3721,13 @@ func SimVarFuelTankExternal1Quantity() SimVar {
 }
 
 // SimVarFuelTankExternal2Quantity Simvar
-func SimVarFuelTankExternal2Quantity() SimVar {
+func SimVarFuelTankExternal2Quantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 QUANTITY",
 		Units:    "Gallons",
 		Settable: true,
@@ -2237,8 +3735,14 @@ func SimVarFuelTankExternal2Quantity() SimVar {
 }
 
 // SimVarFuelLeftQuantity Simvar
-func SimVarFuelLeftQuantity() SimVar {
+// args contain optional index
+func SimVarFuelLeftQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL LEFT QUANTITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2246,8 +3750,14 @@ func SimVarFuelLeftQuantity() SimVar {
 }
 
 // SimVarFuelRightQuantity Simvar
-func SimVarFuelRightQuantity() SimVar {
+// args contain optional index
+func SimVarFuelRightQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL RIGHT QUANTITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2255,8 +3765,14 @@ func SimVarFuelRightQuantity() SimVar {
 }
 
 // SimVarFuelTotalQuantity Simvar
-func SimVarFuelTotalQuantity() SimVar {
+// args contain optional index
+func SimVarFuelTotalQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TOTAL QUANTITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2264,8 +3780,14 @@ func SimVarFuelTotalQuantity() SimVar {
 }
 
 // SimVarFuelWeightPerGallon Simvar
-func SimVarFuelWeightPerGallon() SimVar {
+// args contain optional index
+func SimVarFuelWeightPerGallon(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL WEIGHT PER GALLON",
 		Units:    "Pounds",
 		Settable: false,
@@ -2273,8 +3795,14 @@ func SimVarFuelWeightPerGallon() SimVar {
 }
 
 // SimVarFuelTankSelector Simvar
-func SimVarFuelTankSelector() SimVar {
+// args contain optional index
+func SimVarFuelTankSelector(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TANK SELECTOR:index",
 		Units:    "Enum",
 		Settable: false,
@@ -2282,8 +3810,14 @@ func SimVarFuelTankSelector() SimVar {
 }
 
 // SimVarFuelCrossFeed Simvar
-func SimVarFuelCrossFeed() SimVar {
+// args contain optional index
+func SimVarFuelCrossFeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL CROSS FEED",
 		Units:    "Enum",
 		Settable: false,
@@ -2291,8 +3825,14 @@ func SimVarFuelCrossFeed() SimVar {
 }
 
 // SimVarFuelTotalCapacity Simvar
-func SimVarFuelTotalCapacity() SimVar {
+// args contain optional index
+func SimVarFuelTotalCapacity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TOTAL CAPACITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2300,8 +3840,14 @@ func SimVarFuelTotalCapacity() SimVar {
 }
 
 // SimVarFuelSelectedQuantityPercent Simvar
-func SimVarFuelSelectedQuantityPercent() SimVar {
+// args contain optional index
+func SimVarFuelSelectedQuantityPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL SELECTED QUANTITY PERCENT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -2309,8 +3855,14 @@ func SimVarFuelSelectedQuantityPercent() SimVar {
 }
 
 // SimVarFuelSelectedQuantity Simvar
-func SimVarFuelSelectedQuantity() SimVar {
+// args contain optional index
+func SimVarFuelSelectedQuantity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL SELECTED QUANTITY",
 		Units:    "Gallons",
 		Settable: false,
@@ -2318,8 +3870,14 @@ func SimVarFuelSelectedQuantity() SimVar {
 }
 
 // SimVarFuelTotalQuantityWeight Simvar
-func SimVarFuelTotalQuantityWeight() SimVar {
+// args contain optional index
+func SimVarFuelTotalQuantityWeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL TOTAL QUANTITY WEIGHT",
 		Units:    "Pounds",
 		Settable: false,
@@ -2327,8 +3885,14 @@ func SimVarFuelTotalQuantityWeight() SimVar {
 }
 
 // SimVarNumFuelSelectors Simvar
-func SimVarNumFuelSelectors() SimVar {
+// args contain optional index
+func SimVarNumFuelSelectors(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NUM FUEL SELECTORS",
 		Units:    "Number",
 		Settable: false,
@@ -2336,8 +3900,14 @@ func SimVarNumFuelSelectors() SimVar {
 }
 
 // SimVarUnlimitedFuel Simvar
-func SimVarUnlimitedFuel() SimVar {
+// args contain optional index
+func SimVarUnlimitedFuel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "UNLIMITED FUEL",
 		Units:    "Bool",
 		Settable: false,
@@ -2345,8 +3915,14 @@ func SimVarUnlimitedFuel() SimVar {
 }
 
 // SimVarEstimatedFuelFlow Simvar
-func SimVarEstimatedFuelFlow() SimVar {
+// args contain optional index
+func SimVarEstimatedFuelFlow(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ESTIMATED FUEL FLOW",
 		Units:    "Pounds per hour",
 		Settable: false,
@@ -2354,8 +3930,14 @@ func SimVarEstimatedFuelFlow() SimVar {
 }
 
 // SimVarLightStrobe Simvar
-func SimVarLightStrobe() SimVar {
+// args contain optional index
+func SimVarLightStrobe(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT STROBE",
 		Units:    "Bool",
 		Settable: false,
@@ -2363,8 +3945,14 @@ func SimVarLightStrobe() SimVar {
 }
 
 // SimVarLightPanel Simvar
-func SimVarLightPanel() SimVar {
+// args contain optional index
+func SimVarLightPanel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT PANEL",
 		Units:    "Bool",
 		Settable: false,
@@ -2372,8 +3960,14 @@ func SimVarLightPanel() SimVar {
 }
 
 // SimVarLightLanding Simvar
-func SimVarLightLanding() SimVar {
+// args contain optional index
+func SimVarLightLanding(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT LANDING",
 		Units:    "Bool",
 		Settable: false,
@@ -2381,8 +3975,14 @@ func SimVarLightLanding() SimVar {
 }
 
 // SimVarLightTaxi Simvar
-func SimVarLightTaxi() SimVar {
+// args contain optional index
+func SimVarLightTaxi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT TAXI",
 		Units:    "Bool",
 		Settable: false,
@@ -2390,8 +3990,14 @@ func SimVarLightTaxi() SimVar {
 }
 
 // SimVarLightBeacon Simvar
-func SimVarLightBeacon() SimVar {
+// args contain optional index
+func SimVarLightBeacon(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT BEACON",
 		Units:    "Bool",
 		Settable: false,
@@ -2399,8 +4005,14 @@ func SimVarLightBeacon() SimVar {
 }
 
 // SimVarLightNav Simvar
-func SimVarLightNav() SimVar {
+// args contain optional index
+func SimVarLightNav(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT NAV",
 		Units:    "Bool",
 		Settable: false,
@@ -2408,8 +4020,14 @@ func SimVarLightNav() SimVar {
 }
 
 // SimVarLightLogo Simvar
-func SimVarLightLogo() SimVar {
+// args contain optional index
+func SimVarLightLogo(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT LOGO",
 		Units:    "Bool",
 		Settable: false,
@@ -2417,8 +4035,14 @@ func SimVarLightLogo() SimVar {
 }
 
 // SimVarLightWing Simvar
-func SimVarLightWing() SimVar {
+// args contain optional index
+func SimVarLightWing(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT WING",
 		Units:    "Bool",
 		Settable: false,
@@ -2426,8 +4050,14 @@ func SimVarLightWing() SimVar {
 }
 
 // SimVarLightRecognition Simvar
-func SimVarLightRecognition() SimVar {
+// args contain optional index
+func SimVarLightRecognition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT RECOGNITION",
 		Units:    "Bool",
 		Settable: false,
@@ -2435,8 +4065,14 @@ func SimVarLightRecognition() SimVar {
 }
 
 // SimVarLightCabin Simvar
-func SimVarLightCabin() SimVar {
+// args contain optional index
+func SimVarLightCabin(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LIGHT CABIN",
 		Units:    "Bool",
 		Settable: false,
@@ -2444,8 +4080,14 @@ func SimVarLightCabin() SimVar {
 }
 
 // SimVarGroundVelocity Simvar
-func SimVarGroundVelocity() SimVar {
+// args contain optional index
+func SimVarGroundVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GROUND VELOCITY",
 		Units:    "Knots",
 		Settable: false,
@@ -2453,8 +4095,14 @@ func SimVarGroundVelocity() SimVar {
 }
 
 // SimVarTotalWorldVelocity Simvar
-func SimVarTotalWorldVelocity() SimVar {
+// args contain optional index
+func SimVarTotalWorldVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WORLD VELOCITY",
 		Units:    "Feet per second",
 		Settable: false,
@@ -2462,8 +4110,14 @@ func SimVarTotalWorldVelocity() SimVar {
 }
 
 // SimVarVelocityBodyZ Simvar
-func SimVarVelocityBodyZ() SimVar {
+// args contain optional index
+func SimVarVelocityBodyZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY BODY Z",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2471,8 +4125,14 @@ func SimVarVelocityBodyZ() SimVar {
 }
 
 // SimVarVelocityBodyX Simvar
-func SimVarVelocityBodyX() SimVar {
+// args contain optional index
+func SimVarVelocityBodyX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY BODY X",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2480,8 +4140,14 @@ func SimVarVelocityBodyX() SimVar {
 }
 
 // SimVarVelocityBodyY Simvar
-func SimVarVelocityBodyY() SimVar {
+// args contain optional index
+func SimVarVelocityBodyY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY BODY Y",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2489,8 +4155,14 @@ func SimVarVelocityBodyY() SimVar {
 }
 
 // SimVarVelocityWorldZ Simvar
-func SimVarVelocityWorldZ() SimVar {
+// args contain optional index
+func SimVarVelocityWorldZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY WORLD Z",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2498,8 +4170,14 @@ func SimVarVelocityWorldZ() SimVar {
 }
 
 // SimVarVelocityWorldX Simvar
-func SimVarVelocityWorldX() SimVar {
+// args contain optional index
+func SimVarVelocityWorldX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY WORLD X",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2507,8 +4185,14 @@ func SimVarVelocityWorldX() SimVar {
 }
 
 // SimVarVelocityWorldY Simvar
-func SimVarVelocityWorldY() SimVar {
+// args contain optional index
+func SimVarVelocityWorldY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VELOCITY WORLD Y",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2516,8 +4200,14 @@ func SimVarVelocityWorldY() SimVar {
 }
 
 // SimVarAccelerationWorldX Simvar
-func SimVarAccelerationWorldX() SimVar {
+// args contain optional index
+func SimVarAccelerationWorldX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION WORLD X",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2525,8 +4215,14 @@ func SimVarAccelerationWorldX() SimVar {
 }
 
 // SimVarAccelerationWorldY Simvar
-func SimVarAccelerationWorldY() SimVar {
+// args contain optional index
+func SimVarAccelerationWorldY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION WORLD Y",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2534,8 +4230,14 @@ func SimVarAccelerationWorldY() SimVar {
 }
 
 // SimVarAccelerationWorldZ Simvar
-func SimVarAccelerationWorldZ() SimVar {
+// args contain optional index
+func SimVarAccelerationWorldZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION WORLD Z",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2543,8 +4245,14 @@ func SimVarAccelerationWorldZ() SimVar {
 }
 
 // SimVarAccelerationBodyX Simvar
-func SimVarAccelerationBodyX() SimVar {
+// args contain optional index
+func SimVarAccelerationBodyX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION BODY X",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2552,8 +4260,14 @@ func SimVarAccelerationBodyX() SimVar {
 }
 
 // SimVarAccelerationBodyY Simvar
-func SimVarAccelerationBodyY() SimVar {
+// args contain optional index
+func SimVarAccelerationBodyY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION BODY Y",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2561,8 +4275,14 @@ func SimVarAccelerationBodyY() SimVar {
 }
 
 // SimVarAccelerationBodyZ Simvar
-func SimVarAccelerationBodyZ() SimVar {
+// args contain optional index
+func SimVarAccelerationBodyZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ACCELERATION BODY Z",
 		Units:    "Feet per second squared",
 		Settable: true,
@@ -2570,8 +4290,14 @@ func SimVarAccelerationBodyZ() SimVar {
 }
 
 // SimVarRotationVelocityBodyX Simvar
-func SimVarRotationVelocityBodyX() SimVar {
+// args contain optional index
+func SimVarRotationVelocityBodyX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTATION VELOCITY BODY X",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2579,8 +4305,14 @@ func SimVarRotationVelocityBodyX() SimVar {
 }
 
 // SimVarRotationVelocityBodyY Simvar
-func SimVarRotationVelocityBodyY() SimVar {
+// args contain optional index
+func SimVarRotationVelocityBodyY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTATION VELOCITY BODY Y",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2588,8 +4320,14 @@ func SimVarRotationVelocityBodyY() SimVar {
 }
 
 // SimVarRotationVelocityBodyZ Simvar
-func SimVarRotationVelocityBodyZ() SimVar {
+// args contain optional index
+func SimVarRotationVelocityBodyZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTATION VELOCITY BODY Z",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2597,8 +4335,14 @@ func SimVarRotationVelocityBodyZ() SimVar {
 }
 
 // SimVarRelativeWindVelocityBodyX Simvar
-func SimVarRelativeWindVelocityBodyX() SimVar {
+// args contain optional index
+func SimVarRelativeWindVelocityBodyX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY X",
 		Units:    "Feet per second",
 		Settable: false,
@@ -2606,8 +4350,14 @@ func SimVarRelativeWindVelocityBodyX() SimVar {
 }
 
 // SimVarRelativeWindVelocityBodyY Simvar
-func SimVarRelativeWindVelocityBodyY() SimVar {
+// args contain optional index
+func SimVarRelativeWindVelocityBodyY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY Y",
 		Units:    "Feet per second",
 		Settable: false,
@@ -2615,8 +4365,14 @@ func SimVarRelativeWindVelocityBodyY() SimVar {
 }
 
 // SimVarRelativeWindVelocityBodyZ Simvar
-func SimVarRelativeWindVelocityBodyZ() SimVar {
+// args contain optional index
+func SimVarRelativeWindVelocityBodyZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY Z",
 		Units:    "Feet per second",
 		Settable: false,
@@ -2624,8 +4380,14 @@ func SimVarRelativeWindVelocityBodyZ() SimVar {
 }
 
 // SimVarPlaneAltAboveGround Simvar
-func SimVarPlaneAltAboveGround() SimVar {
+// args contain optional index
+func SimVarPlaneAltAboveGround(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE ALT ABOVE GROUND",
 		Units:    "Feet",
 		Settable: true,
@@ -2633,8 +4395,14 @@ func SimVarPlaneAltAboveGround() SimVar {
 }
 
 // SimVarPlaneLatitude Simvar
-func SimVarPlaneLatitude() SimVar {
+// args contain optional index
+func SimVarPlaneLatitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE LATITUDE",
 		Units:    "Radians",
 		Settable: true,
@@ -2642,8 +4410,14 @@ func SimVarPlaneLatitude() SimVar {
 }
 
 // SimVarPlaneLongitude Simvar
-func SimVarPlaneLongitude() SimVar {
+// args contain optional index
+func SimVarPlaneLongitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE LONGITUDE",
 		Units:    "Radians",
 		Settable: true,
@@ -2651,8 +4425,14 @@ func SimVarPlaneLongitude() SimVar {
 }
 
 // SimVarPlaneAltitude Simvar
-func SimVarPlaneAltitude() SimVar {
+// args contain optional index
+func SimVarPlaneAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE ALTITUDE",
 		Units:    "Feet",
 		Settable: true,
@@ -2660,8 +4440,14 @@ func SimVarPlaneAltitude() SimVar {
 }
 
 // SimVarPlanePitchDegrees Simvar
-func SimVarPlanePitchDegrees() SimVar {
+// args contain optional index
+func SimVarPlanePitchDegrees(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE PITCH DEGREES",
 		Units:    "Radians",
 		Settable: true,
@@ -2669,8 +4455,14 @@ func SimVarPlanePitchDegrees() SimVar {
 }
 
 // SimVarPlaneBankDegrees Simvar
-func SimVarPlaneBankDegrees() SimVar {
+// args contain optional index
+func SimVarPlaneBankDegrees(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE BANK DEGREES",
 		Units:    "Radians",
 		Settable: true,
@@ -2678,8 +4470,14 @@ func SimVarPlaneBankDegrees() SimVar {
 }
 
 // SimVarPlaneHeadingDegreesTrue Simvar
-func SimVarPlaneHeadingDegreesTrue() SimVar {
+// args contain optional index
+func SimVarPlaneHeadingDegreesTrue(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE HEADING DEGREES TRUE",
 		Units:    "Radians",
 		Settable: true,
@@ -2687,8 +4485,14 @@ func SimVarPlaneHeadingDegreesTrue() SimVar {
 }
 
 // SimVarPlaneHeadingDegreesMagnetic Simvar
-func SimVarPlaneHeadingDegreesMagnetic() SimVar {
+// args contain optional index
+func SimVarPlaneHeadingDegreesMagnetic(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE HEADING DEGREES MAGNETIC",
 		Units:    "Radians",
 		Settable: true,
@@ -2696,8 +4500,14 @@ func SimVarPlaneHeadingDegreesMagnetic() SimVar {
 }
 
 // SimVarMagvar Simvar
-func SimVarMagvar() SimVar {
+// args contain optional index
+func SimVarMagvar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MAGVAR",
 		Units:    "Degrees",
 		Settable: false,
@@ -2705,8 +4515,14 @@ func SimVarMagvar() SimVar {
 }
 
 // SimVarGroundAltitude Simvar
-func SimVarGroundAltitude() SimVar {
+// args contain optional index
+func SimVarGroundAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GROUND ALTITUDE",
 		Units:    "Meters",
 		Settable: false,
@@ -2714,8 +4530,14 @@ func SimVarGroundAltitude() SimVar {
 }
 
 // SimVarSurfaceType Simvar
-func SimVarSurfaceType() SimVar {
+// args contain optional index
+func SimVarSurfaceType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SURFACE TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -2723,8 +4545,14 @@ func SimVarSurfaceType() SimVar {
 }
 
 // SimVarSimOnGround Simvar
-func SimVarSimOnGround() SimVar {
+// args contain optional index
+func SimVarSimOnGround(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SIM ON GROUND",
 		Units:    "Bool",
 		Settable: false,
@@ -2732,8 +4560,14 @@ func SimVarSimOnGround() SimVar {
 }
 
 // SimVarIncidenceAlpha Simvar
-func SimVarIncidenceAlpha() SimVar {
+// args contain optional index
+func SimVarIncidenceAlpha(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INCIDENCE ALPHA",
 		Units:    "Radians",
 		Settable: false,
@@ -2741,8 +4575,14 @@ func SimVarIncidenceAlpha() SimVar {
 }
 
 // SimVarIncidenceBeta Simvar
-func SimVarIncidenceBeta() SimVar {
+// args contain optional index
+func SimVarIncidenceBeta(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INCIDENCE BETA",
 		Units:    "Radians",
 		Settable: false,
@@ -2750,8 +4590,14 @@ func SimVarIncidenceBeta() SimVar {
 }
 
 // SimVarAirspeedTrue Simvar
-func SimVarAirspeedTrue() SimVar {
+// args contain optional index
+func SimVarAirspeedTrue(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED TRUE",
 		Units:    "Knots",
 		Settable: true,
@@ -2759,8 +4605,14 @@ func SimVarAirspeedTrue() SimVar {
 }
 
 // SimVarAirspeedIndicated Simvar
-func SimVarAirspeedIndicated() SimVar {
+// args contain optional index
+func SimVarAirspeedIndicated(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED INDICATED",
 		Units:    "Knots",
 		Settable: true,
@@ -2768,8 +4620,14 @@ func SimVarAirspeedIndicated() SimVar {
 }
 
 // SimVarAirspeedTrueCalibrate Simvar
-func SimVarAirspeedTrueCalibrate() SimVar {
+// args contain optional index
+func SimVarAirspeedTrueCalibrate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED TRUE CALIBRATE",
 		Units:    "Degrees",
 		Settable: true,
@@ -2777,8 +4635,14 @@ func SimVarAirspeedTrueCalibrate() SimVar {
 }
 
 // SimVarAirspeedBarberPole Simvar
-func SimVarAirspeedBarberPole() SimVar {
+// args contain optional index
+func SimVarAirspeedBarberPole(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED BARBER POLE",
 		Units:    "Knots",
 		Settable: false,
@@ -2786,8 +4650,14 @@ func SimVarAirspeedBarberPole() SimVar {
 }
 
 // SimVarAirspeedMach Simvar
-func SimVarAirspeedMach() SimVar {
+// args contain optional index
+func SimVarAirspeedMach(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED MACH",
 		Units:    "Mach",
 		Settable: false,
@@ -2795,8 +4665,14 @@ func SimVarAirspeedMach() SimVar {
 }
 
 // SimVarVerticalSpeed Simvar
-func SimVarVerticalSpeed() SimVar {
+// args contain optional index
+func SimVarVerticalSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VERTICAL SPEED",
 		Units:    "Feet per second",
 		Settable: true,
@@ -2804,8 +4680,14 @@ func SimVarVerticalSpeed() SimVar {
 }
 
 // SimVarMachMaxOperate Simvar
-func SimVarMachMaxOperate() SimVar {
+// args contain optional index
+func SimVarMachMaxOperate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MACH MAX OPERATE",
 		Units:    "Mach",
 		Settable: false,
@@ -2813,8 +4695,14 @@ func SimVarMachMaxOperate() SimVar {
 }
 
 // SimVarStallWarning Simvar
-func SimVarStallWarning() SimVar {
+// args contain optional index
+func SimVarStallWarning(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STALL WARNING",
 		Units:    "Bool",
 		Settable: false,
@@ -2822,8 +4710,14 @@ func SimVarStallWarning() SimVar {
 }
 
 // SimVarOverspeedWarning Simvar
-func SimVarOverspeedWarning() SimVar {
+// args contain optional index
+func SimVarOverspeedWarning(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "OVERSPEED WARNING",
 		Units:    "Bool",
 		Settable: false,
@@ -2831,8 +4725,14 @@ func SimVarOverspeedWarning() SimVar {
 }
 
 // SimVarBarberPoleMach Simvar
-func SimVarBarberPoleMach() SimVar {
+// args contain optional index
+func SimVarBarberPoleMach(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BARBER POLE MACH",
 		Units:    "Mach",
 		Settable: false,
@@ -2840,8 +4740,14 @@ func SimVarBarberPoleMach() SimVar {
 }
 
 // SimVarIndicatedAltitude Simvar
-func SimVarIndicatedAltitude() SimVar {
+// args contain optional index
+func SimVarIndicatedAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INDICATED ALTITUDE",
 		Units:    "Feet",
 		Settable: true,
@@ -2849,8 +4755,14 @@ func SimVarIndicatedAltitude() SimVar {
 }
 
 // SimVarKohlsmanSettingMb Simvar
-func SimVarKohlsmanSettingMb() SimVar {
+// args contain optional index
+func SimVarKohlsmanSettingMb(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "KOHLSMAN SETTING MB",
 		Units:    "Millibars",
 		Settable: true,
@@ -2858,8 +4770,14 @@ func SimVarKohlsmanSettingMb() SimVar {
 }
 
 // SimVarKohlsmanSettingHg Simvar
-func SimVarKohlsmanSettingHg() SimVar {
+// args contain optional index
+func SimVarKohlsmanSettingHg(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "KOHLSMAN SETTING HG",
 		Units:    "inHg",
 		Settable: false,
@@ -2867,8 +4785,14 @@ func SimVarKohlsmanSettingHg() SimVar {
 }
 
 // SimVarAttitudeIndicatorPitchDegrees Simvar
-func SimVarAttitudeIndicatorPitchDegrees() SimVar {
+// args contain optional index
+func SimVarAttitudeIndicatorPitchDegrees(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATTITUDE INDICATOR PITCH DEGREES",
 		Units:    "Radians",
 		Settable: false,
@@ -2876,8 +4800,14 @@ func SimVarAttitudeIndicatorPitchDegrees() SimVar {
 }
 
 // SimVarAttitudeIndicatorBankDegrees Simvar
-func SimVarAttitudeIndicatorBankDegrees() SimVar {
+// args contain optional index
+func SimVarAttitudeIndicatorBankDegrees(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATTITUDE INDICATOR BANK DEGREES",
 		Units:    "Radians",
 		Settable: false,
@@ -2885,8 +4815,14 @@ func SimVarAttitudeIndicatorBankDegrees() SimVar {
 }
 
 // SimVarAttitudeBarsPosition Simvar
-func SimVarAttitudeBarsPosition() SimVar {
+// args contain optional index
+func SimVarAttitudeBarsPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATTITUDE BARS POSITION",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -2894,8 +4830,14 @@ func SimVarAttitudeBarsPosition() SimVar {
 }
 
 // SimVarAttitudeCage Simvar
-func SimVarAttitudeCage() SimVar {
+// args contain optional index
+func SimVarAttitudeCage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATTITUDE CAGE",
 		Units:    "Bool",
 		Settable: false,
@@ -2903,8 +4845,14 @@ func SimVarAttitudeCage() SimVar {
 }
 
 // SimVarWiskeyCompassIndicationDegrees Simvar
-func SimVarWiskeyCompassIndicationDegrees() SimVar {
+// args contain optional index
+func SimVarWiskeyCompassIndicationDegrees(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WISKEY COMPASS INDICATION DEGREES",
 		Units:    "Degrees",
 		Settable: true,
@@ -2912,8 +4860,14 @@ func SimVarWiskeyCompassIndicationDegrees() SimVar {
 }
 
 // SimVarPlaneHeadingDegreesGyro Simvar
-func SimVarPlaneHeadingDegreesGyro() SimVar {
+// args contain optional index
+func SimVarPlaneHeadingDegreesGyro(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PLANE HEADING DEGREES GYRO",
 		Units:    "Radians",
 		Settable: true,
@@ -2921,8 +4875,14 @@ func SimVarPlaneHeadingDegreesGyro() SimVar {
 }
 
 // SimVarHeadingIndicator Simvar
-func SimVarHeadingIndicator() SimVar {
+// args contain optional index
+func SimVarHeadingIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HEADING INDICATOR",
 		Units:    "Radians",
 		Settable: false,
@@ -2930,8 +4890,14 @@ func SimVarHeadingIndicator() SimVar {
 }
 
 // SimVarGyroDriftError Simvar
-func SimVarGyroDriftError() SimVar {
+// args contain optional index
+func SimVarGyroDriftError(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GYRO DRIFT ERROR",
 		Units:    "Radians",
 		Settable: false,
@@ -2939,8 +4905,14 @@ func SimVarGyroDriftError() SimVar {
 }
 
 // SimVarDeltaHeadingRate Simvar
-func SimVarDeltaHeadingRate() SimVar {
+// args contain optional index
+func SimVarDeltaHeadingRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DELTA HEADING RATE",
 		Units:    "Radians per second",
 		Settable: true,
@@ -2948,8 +4920,14 @@ func SimVarDeltaHeadingRate() SimVar {
 }
 
 // SimVarTurnCoordinatorBall Simvar
-func SimVarTurnCoordinatorBall() SimVar {
+// args contain optional index
+func SimVarTurnCoordinatorBall(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURN COORDINATOR BALL",
 		Units:    "Position",
 		Settable: false,
@@ -2957,8 +4935,14 @@ func SimVarTurnCoordinatorBall() SimVar {
 }
 
 // SimVarAngleOfAttackIndicator Simvar
-func SimVarAngleOfAttackIndicator() SimVar {
+// args contain optional index
+func SimVarAngleOfAttackIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ANGLE OF ATTACK INDICATOR",
 		Units:    "Radians",
 		Settable: false,
@@ -2966,8 +4950,14 @@ func SimVarAngleOfAttackIndicator() SimVar {
 }
 
 // SimVarRadioHeight Simvar
-func SimVarRadioHeight() SimVar {
+// args contain optional index
+func SimVarRadioHeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RADIO HEIGHT",
 		Units:    "Feet",
 		Settable: false,
@@ -2975,8 +4965,14 @@ func SimVarRadioHeight() SimVar {
 }
 
 // SimVarPartialPanelAdf Simvar
-func SimVarPartialPanelAdf() SimVar {
+// args contain optional index
+func SimVarPartialPanelAdf(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL ADF",
 		Units:    "Enum",
 		Settable: true,
@@ -2984,8 +4980,14 @@ func SimVarPartialPanelAdf() SimVar {
 }
 
 // SimVarPartialPanelAirspeed Simvar
-func SimVarPartialPanelAirspeed() SimVar {
+// args contain optional index
+func SimVarPartialPanelAirspeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL AIRSPEED",
 		Units:    "Enum",
 		Settable: true,
@@ -2993,8 +4995,14 @@ func SimVarPartialPanelAirspeed() SimVar {
 }
 
 // SimVarPartialPanelAltimeter Simvar
-func SimVarPartialPanelAltimeter() SimVar {
+// args contain optional index
+func SimVarPartialPanelAltimeter(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL ALTIMETER",
 		Units:    "Enum",
 		Settable: true,
@@ -3002,8 +5010,14 @@ func SimVarPartialPanelAltimeter() SimVar {
 }
 
 // SimVarPartialPanelAttitude Simvar
-func SimVarPartialPanelAttitude() SimVar {
+// args contain optional index
+func SimVarPartialPanelAttitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL ATTITUDE",
 		Units:    "Enum",
 		Settable: true,
@@ -3011,8 +5025,14 @@ func SimVarPartialPanelAttitude() SimVar {
 }
 
 // SimVarPartialPanelComm Simvar
-func SimVarPartialPanelComm() SimVar {
+// args contain optional index
+func SimVarPartialPanelComm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL COMM",
 		Units:    "Enum",
 		Settable: true,
@@ -3020,8 +5040,14 @@ func SimVarPartialPanelComm() SimVar {
 }
 
 // SimVarPartialPanelCompass Simvar
-func SimVarPartialPanelCompass() SimVar {
+// args contain optional index
+func SimVarPartialPanelCompass(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL COMPASS",
 		Units:    "Enum",
 		Settable: true,
@@ -3029,8 +5055,14 @@ func SimVarPartialPanelCompass() SimVar {
 }
 
 // SimVarPartialPanelElectrical Simvar
-func SimVarPartialPanelElectrical() SimVar {
+// args contain optional index
+func SimVarPartialPanelElectrical(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL ELECTRICAL",
 		Units:    "Enum",
 		Settable: true,
@@ -3038,8 +5070,14 @@ func SimVarPartialPanelElectrical() SimVar {
 }
 
 // SimVarPartialPanelAvionics Simvar
-func SimVarPartialPanelAvionics() SimVar {
+// args contain optional index
+func SimVarPartialPanelAvionics(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL AVIONICS",
 		Units:    "Enum",
 		Settable: false,
@@ -3047,8 +5085,14 @@ func SimVarPartialPanelAvionics() SimVar {
 }
 
 // SimVarPartialPanelEngine Simvar
-func SimVarPartialPanelEngine() SimVar {
+// args contain optional index
+func SimVarPartialPanelEngine(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL ENGINE",
 		Units:    "Enum",
 		Settable: true,
@@ -3056,8 +5100,14 @@ func SimVarPartialPanelEngine() SimVar {
 }
 
 // SimVarPartialPanelFuelIndicator Simvar
-func SimVarPartialPanelFuelIndicator() SimVar {
+// args contain optional index
+func SimVarPartialPanelFuelIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL FUEL INDICATOR",
 		Units:    "Enum",
 		Settable: false,
@@ -3065,8 +5115,14 @@ func SimVarPartialPanelFuelIndicator() SimVar {
 }
 
 // SimVarPartialPanelHeading Simvar
-func SimVarPartialPanelHeading() SimVar {
+// args contain optional index
+func SimVarPartialPanelHeading(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL HEADING",
 		Units:    "Enum",
 		Settable: true,
@@ -3074,8 +5130,14 @@ func SimVarPartialPanelHeading() SimVar {
 }
 
 // SimVarPartialPanelVerticalVelocity Simvar
-func SimVarPartialPanelVerticalVelocity() SimVar {
+// args contain optional index
+func SimVarPartialPanelVerticalVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL VERTICAL VELOCITY",
 		Units:    "Enum",
 		Settable: true,
@@ -3083,8 +5145,14 @@ func SimVarPartialPanelVerticalVelocity() SimVar {
 }
 
 // SimVarPartialPanelTransponder Simvar
-func SimVarPartialPanelTransponder() SimVar {
+// args contain optional index
+func SimVarPartialPanelTransponder(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL TRANSPONDER",
 		Units:    "Enum",
 		Settable: true,
@@ -3092,8 +5160,14 @@ func SimVarPartialPanelTransponder() SimVar {
 }
 
 // SimVarPartialPanelNav Simvar
-func SimVarPartialPanelNav() SimVar {
+// args contain optional index
+func SimVarPartialPanelNav(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL NAV",
 		Units:    "Enum",
 		Settable: true,
@@ -3101,8 +5175,14 @@ func SimVarPartialPanelNav() SimVar {
 }
 
 // SimVarPartialPanelPitot Simvar
-func SimVarPartialPanelPitot() SimVar {
+// args contain optional index
+func SimVarPartialPanelPitot(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL PITOT",
 		Units:    "Enum",
 		Settable: true,
@@ -3110,8 +5190,14 @@ func SimVarPartialPanelPitot() SimVar {
 }
 
 // SimVarPartialPanelTurnCoordinator Simvar
-func SimVarPartialPanelTurnCoordinator() SimVar {
+// args contain optional index
+func SimVarPartialPanelTurnCoordinator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL TURN COORDINATOR",
 		Units:    "Enum",
 		Settable: false,
@@ -3119,8 +5205,14 @@ func SimVarPartialPanelTurnCoordinator() SimVar {
 }
 
 // SimVarPartialPanelVacuum Simvar
-func SimVarPartialPanelVacuum() SimVar {
+// args contain optional index
+func SimVarPartialPanelVacuum(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PARTIAL PANEL VACUUM",
 		Units:    "Enum",
 		Settable: true,
@@ -3128,8 +5220,14 @@ func SimVarPartialPanelVacuum() SimVar {
 }
 
 // SimVarMaxGForce Simvar
-func SimVarMaxGForce() SimVar {
+// args contain optional index
+func SimVarMaxGForce(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MAX G FORCE",
 		Units:    "Gforce",
 		Settable: false,
@@ -3137,8 +5235,14 @@ func SimVarMaxGForce() SimVar {
 }
 
 // SimVarMinGForce Simvar
-func SimVarMinGForce() SimVar {
+// args contain optional index
+func SimVarMinGForce(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MIN G FORCE",
 		Units:    "Gforce",
 		Settable: false,
@@ -3146,8 +5250,14 @@ func SimVarMinGForce() SimVar {
 }
 
 // SimVarSuctionPressure Simvar
-func SimVarSuctionPressure() SimVar {
+// args contain optional index
+func SimVarSuctionPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SUCTION PRESSURE",
 		Units:    "inHg",
 		Settable: true,
@@ -3155,8 +5265,14 @@ func SimVarSuctionPressure() SimVar {
 }
 
 // SimVarAvionicsMasterSwitch Simvar
-func SimVarAvionicsMasterSwitch() SimVar {
+// args contain optional index
+func SimVarAvionicsMasterSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AVIONICS MASTER SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -3164,8 +5280,14 @@ func SimVarAvionicsMasterSwitch() SimVar {
 }
 
 // SimVarNavSound Simvar
-func SimVarNavSound() SimVar {
+// args contain optional index
+func SimVarNavSound(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV SOUND:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3173,8 +5295,14 @@ func SimVarNavSound() SimVar {
 }
 
 // SimVarDmeSound Simvar
-func SimVarDmeSound() SimVar {
+// args contain optional index
+func SimVarDmeSound(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DME SOUND",
 		Units:    "Bool",
 		Settable: false,
@@ -3182,8 +5310,14 @@ func SimVarDmeSound() SimVar {
 }
 
 // SimVarAdfSound Simvar
-func SimVarAdfSound() SimVar {
+// args contain optional index
+func SimVarAdfSound(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF SOUND:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3191,8 +5325,14 @@ func SimVarAdfSound() SimVar {
 }
 
 // SimVarMarkerSound Simvar
-func SimVarMarkerSound() SimVar {
+// args contain optional index
+func SimVarMarkerSound(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MARKER SOUND",
 		Units:    "Bool",
 		Settable: false,
@@ -3200,8 +5340,14 @@ func SimVarMarkerSound() SimVar {
 }
 
 // SimVarComTransmit Simvar
-func SimVarComTransmit() SimVar {
+// args contain optional index
+func SimVarComTransmit(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM TRANSMIT:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3209,8 +5355,14 @@ func SimVarComTransmit() SimVar {
 }
 
 // SimVarComRecieveAll Simvar
-func SimVarComRecieveAll() SimVar {
+// args contain optional index
+func SimVarComRecieveAll(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM RECIEVE ALL",
 		Units:    "Bool",
 		Settable: false,
@@ -3218,8 +5370,14 @@ func SimVarComRecieveAll() SimVar {
 }
 
 // SimVarComActiveFrequency Simvar
-func SimVarComActiveFrequency() SimVar {
+// args contain optional index
+func SimVarComActiveFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM ACTIVE FREQUENCY:index",
 		Units:    "Frequency BCD16",
 		Settable: false,
@@ -3227,8 +5385,14 @@ func SimVarComActiveFrequency() SimVar {
 }
 
 // SimVarComStandbyFrequency Simvar
-func SimVarComStandbyFrequency() SimVar {
+// args contain optional index
+func SimVarComStandbyFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM STANDBY FREQUENCY:index",
 		Units:    "Frequency BCD16",
 		Settable: false,
@@ -3236,8 +5400,14 @@ func SimVarComStandbyFrequency() SimVar {
 }
 
 // SimVarComStatus Simvar
-func SimVarComStatus() SimVar {
+// args contain optional index
+func SimVarComStatus(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM STATUS:index",
 		Units:    "Enum",
 		Settable: false,
@@ -3245,8 +5415,14 @@ func SimVarComStatus() SimVar {
 }
 
 // SimVarNavAvailable Simvar
-func SimVarNavAvailable() SimVar {
+// args contain optional index
+func SimVarNavAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV AVAILABLE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3254,8 +5430,14 @@ func SimVarNavAvailable() SimVar {
 }
 
 // SimVarNavActiveFrequency Simvar
-func SimVarNavActiveFrequency() SimVar {
+// args contain optional index
+func SimVarNavActiveFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV ACTIVE FREQUENCY:index",
 		Units:    "MHz",
 		Settable: false,
@@ -3263,8 +5445,14 @@ func SimVarNavActiveFrequency() SimVar {
 }
 
 // SimVarNavStandbyFrequency Simvar
-func SimVarNavStandbyFrequency() SimVar {
+// args contain optional index
+func SimVarNavStandbyFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV STANDBY FREQUENCY:index",
 		Units:    "MHz",
 		Settable: false,
@@ -3272,8 +5460,14 @@ func SimVarNavStandbyFrequency() SimVar {
 }
 
 // SimVarNavSignal Simvar
-func SimVarNavSignal() SimVar {
+// args contain optional index
+func SimVarNavSignal(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV SIGNAL:index",
 		Units:    "Number",
 		Settable: false,
@@ -3281,8 +5475,14 @@ func SimVarNavSignal() SimVar {
 }
 
 // SimVarNavHasNav Simvar
-func SimVarNavHasNav() SimVar {
+// args contain optional index
+func SimVarNavHasNav(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV HAS NAV:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3290,8 +5490,14 @@ func SimVarNavHasNav() SimVar {
 }
 
 // SimVarNavHasLocalizer Simvar
-func SimVarNavHasLocalizer() SimVar {
+// args contain optional index
+func SimVarNavHasLocalizer(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV HAS LOCALIZER:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3299,8 +5505,14 @@ func SimVarNavHasLocalizer() SimVar {
 }
 
 // SimVarNavHasDme Simvar
-func SimVarNavHasDme() SimVar {
+// args contain optional index
+func SimVarNavHasDme(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV HAS DME:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3308,8 +5520,14 @@ func SimVarNavHasDme() SimVar {
 }
 
 // SimVarNavHasGlideSlope Simvar
-func SimVarNavHasGlideSlope() SimVar {
+// args contain optional index
+func SimVarNavHasGlideSlope(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV HAS GLIDE SLOPE:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3317,8 +5535,14 @@ func SimVarNavHasGlideSlope() SimVar {
 }
 
 // SimVarNavBackCourseFlags Simvar
-func SimVarNavBackCourseFlags() SimVar {
+// args contain optional index
+func SimVarNavBackCourseFlags(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV BACK COURSE FLAGS:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3326,8 +5550,14 @@ func SimVarNavBackCourseFlags() SimVar {
 }
 
 // SimVarNavMagvar Simvar
-func SimVarNavMagvar() SimVar {
+// args contain optional index
+func SimVarNavMagvar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV MAGVAR:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3335,8 +5565,14 @@ func SimVarNavMagvar() SimVar {
 }
 
 // SimVarNavRadial Simvar
-func SimVarNavRadial() SimVar {
+// args contain optional index
+func SimVarNavRadial(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV RADIAL:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3344,8 +5580,14 @@ func SimVarNavRadial() SimVar {
 }
 
 // SimVarNavRadialError Simvar
-func SimVarNavRadialError() SimVar {
+// args contain optional index
+func SimVarNavRadialError(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV RADIAL ERROR:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3353,8 +5595,14 @@ func SimVarNavRadialError() SimVar {
 }
 
 // SimVarNavLocalizer Simvar
-func SimVarNavLocalizer() SimVar {
+// args contain optional index
+func SimVarNavLocalizer(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV LOCALIZER:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3362,8 +5610,14 @@ func SimVarNavLocalizer() SimVar {
 }
 
 // SimVarNavGlideSlopeError Simvar
-func SimVarNavGlideSlopeError() SimVar {
+// args contain optional index
+func SimVarNavGlideSlopeError(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GLIDE SLOPE ERROR:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3371,8 +5625,14 @@ func SimVarNavGlideSlopeError() SimVar {
 }
 
 // SimVarNavCdi Simvar
-func SimVarNavCdi() SimVar {
+// args contain optional index
+func SimVarNavCdi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV CDI:index",
 		Units:    "Number",
 		Settable: false,
@@ -3380,8 +5640,14 @@ func SimVarNavCdi() SimVar {
 }
 
 // SimVarNavGsi Simvar
-func SimVarNavGsi() SimVar {
+// args contain optional index
+func SimVarNavGsi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GSI:index",
 		Units:    "Number",
 		Settable: false,
@@ -3389,8 +5655,14 @@ func SimVarNavGsi() SimVar {
 }
 
 // SimVarNavTofrom Simvar
-func SimVarNavTofrom() SimVar {
+// args contain optional index
+func SimVarNavTofrom(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV TOFROM:index",
 		Units:    "Enum",
 		Settable: false,
@@ -3398,8 +5670,14 @@ func SimVarNavTofrom() SimVar {
 }
 
 // SimVarNavGsFlag Simvar
-func SimVarNavGsFlag() SimVar {
+// args contain optional index
+func SimVarNavGsFlag(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GS FLAG:index",
 		Units:    "Bool",
 		Settable: false,
@@ -3407,8 +5685,14 @@ func SimVarNavGsFlag() SimVar {
 }
 
 // SimVarNavObs Simvar
-func SimVarNavObs() SimVar {
+// args contain optional index
+func SimVarNavObs(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV OBS:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3416,8 +5700,14 @@ func SimVarNavObs() SimVar {
 }
 
 // SimVarNavDme Simvar
-func SimVarNavDme() SimVar {
+// args contain optional index
+func SimVarNavDme(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV DME:index",
 		Units:    "Nautical miles",
 		Settable: false,
@@ -3425,8 +5715,14 @@ func SimVarNavDme() SimVar {
 }
 
 // SimVarNavDmespeed Simvar
-func SimVarNavDmespeed() SimVar {
+// args contain optional index
+func SimVarNavDmespeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV DMESPEED:index",
 		Units:    "Knots",
 		Settable: false,
@@ -3434,8 +5730,14 @@ func SimVarNavDmespeed() SimVar {
 }
 
 // SimVarAdfActiveFrequency Simvar
-func SimVarAdfActiveFrequency() SimVar {
+// args contain optional index
+func SimVarAdfActiveFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF ACTIVE FREQUENCY:index",
 		Units:    "Frequency ADF BCD32",
 		Settable: false,
@@ -3443,8 +5745,14 @@ func SimVarAdfActiveFrequency() SimVar {
 }
 
 // SimVarAdfStandbyFrequency Simvar
-func SimVarAdfStandbyFrequency() SimVar {
+// args contain optional index
+func SimVarAdfStandbyFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF STANDBY FREQUENCY:index",
 		Units:    "Hz",
 		Settable: false,
@@ -3452,8 +5760,14 @@ func SimVarAdfStandbyFrequency() SimVar {
 }
 
 // SimVarAdfRadial Simvar
-func SimVarAdfRadial() SimVar {
+// args contain optional index
+func SimVarAdfRadial(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF RADIAL:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3461,8 +5775,14 @@ func SimVarAdfRadial() SimVar {
 }
 
 // SimVarAdfSignal Simvar
-func SimVarAdfSignal() SimVar {
+// args contain optional index
+func SimVarAdfSignal(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF SIGNAL:index",
 		Units:    "Number",
 		Settable: false,
@@ -3470,8 +5790,14 @@ func SimVarAdfSignal() SimVar {
 }
 
 // SimVarTransponderCode Simvar
-func SimVarTransponderCode() SimVar {
+// args contain optional index
+func SimVarTransponderCode(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRANSPONDER CODE:index",
 		Units:    "BCO16",
 		Settable: false,
@@ -3479,8 +5805,14 @@ func SimVarTransponderCode() SimVar {
 }
 
 // SimVarMarkerBeaconState Simvar
-func SimVarMarkerBeaconState() SimVar {
+// args contain optional index
+func SimVarMarkerBeaconState(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MARKER BEACON STATE",
 		Units:    "Enum",
 		Settable: true,
@@ -3488,8 +5820,14 @@ func SimVarMarkerBeaconState() SimVar {
 }
 
 // SimVarInnerMarker Simvar
-func SimVarInnerMarker() SimVar {
+// args contain optional index
+func SimVarInnerMarker(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INNER MARKER",
 		Units:    "Bool",
 		Settable: true,
@@ -3497,8 +5835,14 @@ func SimVarInnerMarker() SimVar {
 }
 
 // SimVarMiddleMarker Simvar
-func SimVarMiddleMarker() SimVar {
+// args contain optional index
+func SimVarMiddleMarker(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MIDDLE MARKER",
 		Units:    "Bool",
 		Settable: true,
@@ -3506,8 +5850,14 @@ func SimVarMiddleMarker() SimVar {
 }
 
 // SimVarOuterMarker Simvar
-func SimVarOuterMarker() SimVar {
+// args contain optional index
+func SimVarOuterMarker(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "OUTER MARKER",
 		Units:    "Bool",
 		Settable: true,
@@ -3515,8 +5865,14 @@ func SimVarOuterMarker() SimVar {
 }
 
 // SimVarNavRawGlideSlope Simvar
-func SimVarNavRawGlideSlope() SimVar {
+// args contain optional index
+func SimVarNavRawGlideSlope(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV RAW GLIDE SLOPE:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -3524,8 +5880,14 @@ func SimVarNavRawGlideSlope() SimVar {
 }
 
 // SimVarAdfCard Simvar
-func SimVarAdfCard() SimVar {
+// args contain optional index
+func SimVarAdfCard(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF CARD",
 		Units:    "Degrees",
 		Settable: false,
@@ -3533,8 +5895,14 @@ func SimVarAdfCard() SimVar {
 }
 
 // SimVarHsiCdiNeedle Simvar
-func SimVarHsiCdiNeedle() SimVar {
+// args contain optional index
+func SimVarHsiCdiNeedle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI CDI NEEDLE",
 		Units:    "Number",
 		Settable: false,
@@ -3542,8 +5910,14 @@ func SimVarHsiCdiNeedle() SimVar {
 }
 
 // SimVarHsiGsiNeedle Simvar
-func SimVarHsiGsiNeedle() SimVar {
+// args contain optional index
+func SimVarHsiGsiNeedle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI GSI NEEDLE",
 		Units:    "Number",
 		Settable: false,
@@ -3551,8 +5925,14 @@ func SimVarHsiGsiNeedle() SimVar {
 }
 
 // SimVarHsiCdiNeedleValid Simvar
-func SimVarHsiCdiNeedleValid() SimVar {
+// args contain optional index
+func SimVarHsiCdiNeedleValid(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI CDI NEEDLE VALID",
 		Units:    "Bool",
 		Settable: false,
@@ -3560,8 +5940,14 @@ func SimVarHsiCdiNeedleValid() SimVar {
 }
 
 // SimVarHsiGsiNeedleValid Simvar
-func SimVarHsiGsiNeedleValid() SimVar {
+// args contain optional index
+func SimVarHsiGsiNeedleValid(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI GSI NEEDLE VALID",
 		Units:    "Bool",
 		Settable: false,
@@ -3569,8 +5955,14 @@ func SimVarHsiGsiNeedleValid() SimVar {
 }
 
 // SimVarHsiTfFlags Simvar
-func SimVarHsiTfFlags() SimVar {
+// args contain optional index
+func SimVarHsiTfFlags(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI TF FLAGS",
 		Units:    "Enum",
 		Settable: false,
@@ -3578,8 +5970,14 @@ func SimVarHsiTfFlags() SimVar {
 }
 
 // SimVarHsiBearingValid Simvar
-func SimVarHsiBearingValid() SimVar {
+// args contain optional index
+func SimVarHsiBearingValid(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI BEARING VALID",
 		Units:    "Bool",
 		Settable: false,
@@ -3587,8 +5985,14 @@ func SimVarHsiBearingValid() SimVar {
 }
 
 // SimVarHsiBearing Simvar
-func SimVarHsiBearing() SimVar {
+// args contain optional index
+func SimVarHsiBearing(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI BEARING",
 		Units:    "Degrees",
 		Settable: false,
@@ -3596,8 +6000,14 @@ func SimVarHsiBearing() SimVar {
 }
 
 // SimVarHsiHasLocalizer Simvar
-func SimVarHsiHasLocalizer() SimVar {
+// args contain optional index
+func SimVarHsiHasLocalizer(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI HAS LOCALIZER",
 		Units:    "Bool",
 		Settable: false,
@@ -3605,8 +6015,14 @@ func SimVarHsiHasLocalizer() SimVar {
 }
 
 // SimVarHsiSpeed Simvar
-func SimVarHsiSpeed() SimVar {
+// args contain optional index
+func SimVarHsiSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI SPEED",
 		Units:    "Knots",
 		Settable: false,
@@ -3614,8 +6030,14 @@ func SimVarHsiSpeed() SimVar {
 }
 
 // SimVarHsiDistance Simvar
-func SimVarHsiDistance() SimVar {
+// args contain optional index
+func SimVarHsiDistance(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI DISTANCE",
 		Units:    "Nautical miles",
 		Settable: false,
@@ -3623,8 +6045,14 @@ func SimVarHsiDistance() SimVar {
 }
 
 // SimVarGpsPositionLat Simvar
-func SimVarGpsPositionLat() SimVar {
+// args contain optional index
+func SimVarGpsPositionLat(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS POSITION LAT",
 		Units:    "Degrees",
 		Settable: false,
@@ -3632,8 +6060,14 @@ func SimVarGpsPositionLat() SimVar {
 }
 
 // SimVarGpsPositionLon Simvar
-func SimVarGpsPositionLon() SimVar {
+// args contain optional index
+func SimVarGpsPositionLon(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS POSITION LON",
 		Units:    "Degrees",
 		Settable: false,
@@ -3641,8 +6075,14 @@ func SimVarGpsPositionLon() SimVar {
 }
 
 // SimVarGpsPositionAlt Simvar
-func SimVarGpsPositionAlt() SimVar {
+// args contain optional index
+func SimVarGpsPositionAlt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS POSITION ALT",
 		Units:    "Meters",
 		Settable: false,
@@ -3650,8 +6090,14 @@ func SimVarGpsPositionAlt() SimVar {
 }
 
 // SimVarGpsMagvar Simvar
-func SimVarGpsMagvar() SimVar {
+// args contain optional index
+func SimVarGpsMagvar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS MAGVAR",
 		Units:    "Radians",
 		Settable: false,
@@ -3659,8 +6105,14 @@ func SimVarGpsMagvar() SimVar {
 }
 
 // SimVarGpsIsActiveFlightPlan Simvar
-func SimVarGpsIsActiveFlightPlan() SimVar {
+// args contain optional index
+func SimVarGpsIsActiveFlightPlan(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS ACTIVE FLIGHT PLAN",
 		Units:    "Bool",
 		Settable: false,
@@ -3668,8 +6120,14 @@ func SimVarGpsIsActiveFlightPlan() SimVar {
 }
 
 // SimVarGpsIsActiveWayPoint Simvar
-func SimVarGpsIsActiveWayPoint() SimVar {
+// args contain optional index
+func SimVarGpsIsActiveWayPoint(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS ACTIVE WAY POINT",
 		Units:    "Bool",
 		Settable: false,
@@ -3677,8 +6135,14 @@ func SimVarGpsIsActiveWayPoint() SimVar {
 }
 
 // SimVarGpsIsArrived Simvar
-func SimVarGpsIsArrived() SimVar {
+// args contain optional index
+func SimVarGpsIsArrived(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS ARRIVED",
 		Units:    "Bool",
 		Settable: false,
@@ -3686,8 +6150,14 @@ func SimVarGpsIsArrived() SimVar {
 }
 
 // SimVarGpsIsDirecttoFlightplan Simvar
-func SimVarGpsIsDirecttoFlightplan() SimVar {
+// args contain optional index
+func SimVarGpsIsDirecttoFlightplan(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS DIRECTTO FLIGHTPLAN",
 		Units:    "Bool",
 		Settable: false,
@@ -3695,8 +6165,14 @@ func SimVarGpsIsDirecttoFlightplan() SimVar {
 }
 
 // SimVarGpsGroundSpeed Simvar
-func SimVarGpsGroundSpeed() SimVar {
+// args contain optional index
+func SimVarGpsGroundSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS GROUND SPEED",
 		Units:    "Meters per second",
 		Settable: false,
@@ -3704,8 +6180,14 @@ func SimVarGpsGroundSpeed() SimVar {
 }
 
 // SimVarGpsGroundTrueHeading Simvar
-func SimVarGpsGroundTrueHeading() SimVar {
+// args contain optional index
+func SimVarGpsGroundTrueHeading(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS GROUND TRUE HEADING",
 		Units:    "Radians",
 		Settable: false,
@@ -3713,8 +6195,14 @@ func SimVarGpsGroundTrueHeading() SimVar {
 }
 
 // SimVarGpsGroundMagneticTrack Simvar
-func SimVarGpsGroundMagneticTrack() SimVar {
+// args contain optional index
+func SimVarGpsGroundMagneticTrack(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS GROUND MAGNETIC TRACK",
 		Units:    "Radians",
 		Settable: false,
@@ -3722,8 +6210,14 @@ func SimVarGpsGroundMagneticTrack() SimVar {
 }
 
 // SimVarGpsGroundTrueTrack Simvar
-func SimVarGpsGroundTrueTrack() SimVar {
+// args contain optional index
+func SimVarGpsGroundTrueTrack(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS GROUND TRUE TRACK",
 		Units:    "Radians",
 		Settable: false,
@@ -3731,8 +6225,14 @@ func SimVarGpsGroundTrueTrack() SimVar {
 }
 
 // SimVarGpsWpDistance Simvar
-func SimVarGpsWpDistance() SimVar {
+// args contain optional index
+func SimVarGpsWpDistance(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP DISTANCE",
 		Units:    "Meters",
 		Settable: false,
@@ -3740,8 +6240,14 @@ func SimVarGpsWpDistance() SimVar {
 }
 
 // SimVarGpsWpBearing Simvar
-func SimVarGpsWpBearing() SimVar {
+// args contain optional index
+func SimVarGpsWpBearing(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP BEARING",
 		Units:    "Radians",
 		Settable: false,
@@ -3749,8 +6255,14 @@ func SimVarGpsWpBearing() SimVar {
 }
 
 // SimVarGpsWpTrueBearing Simvar
-func SimVarGpsWpTrueBearing() SimVar {
+// args contain optional index
+func SimVarGpsWpTrueBearing(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP TRUE BEARING",
 		Units:    "Radians",
 		Settable: false,
@@ -3758,8 +6270,14 @@ func SimVarGpsWpTrueBearing() SimVar {
 }
 
 // SimVarGpsWpCrossTrk Simvar
-func SimVarGpsWpCrossTrk() SimVar {
+// args contain optional index
+func SimVarGpsWpCrossTrk(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP CROSS TRK",
 		Units:    "Meters",
 		Settable: false,
@@ -3767,8 +6285,14 @@ func SimVarGpsWpCrossTrk() SimVar {
 }
 
 // SimVarGpsWpDesiredTrack Simvar
-func SimVarGpsWpDesiredTrack() SimVar {
+// args contain optional index
+func SimVarGpsWpDesiredTrack(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP DESIRED TRACK",
 		Units:    "Radians",
 		Settable: false,
@@ -3776,8 +6300,14 @@ func SimVarGpsWpDesiredTrack() SimVar {
 }
 
 // SimVarGpsWpTrueReqHdg Simvar
-func SimVarGpsWpTrueReqHdg() SimVar {
+// args contain optional index
+func SimVarGpsWpTrueReqHdg(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP TRUE REQ HDG",
 		Units:    "Radians",
 		Settable: false,
@@ -3785,8 +6315,14 @@ func SimVarGpsWpTrueReqHdg() SimVar {
 }
 
 // SimVarGpsWpVerticalSpeed Simvar
-func SimVarGpsWpVerticalSpeed() SimVar {
+// args contain optional index
+func SimVarGpsWpVerticalSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP VERTICAL SPEED",
 		Units:    "Meters per second",
 		Settable: false,
@@ -3794,8 +6330,14 @@ func SimVarGpsWpVerticalSpeed() SimVar {
 }
 
 // SimVarGpsWpTrackAngleError Simvar
-func SimVarGpsWpTrackAngleError() SimVar {
+// args contain optional index
+func SimVarGpsWpTrackAngleError(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP TRACK ANGLE ERROR",
 		Units:    "Radians",
 		Settable: false,
@@ -3803,8 +6345,14 @@ func SimVarGpsWpTrackAngleError() SimVar {
 }
 
 // SimVarGpsEte Simvar
-func SimVarGpsEte() SimVar {
+// args contain optional index
+func SimVarGpsEte(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS ETE",
 		Units:    "Seconds",
 		Settable: false,
@@ -3812,8 +6360,14 @@ func SimVarGpsEte() SimVar {
 }
 
 // SimVarGpsEta Simvar
-func SimVarGpsEta() SimVar {
+// args contain optional index
+func SimVarGpsEta(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS ETA",
 		Units:    "Seconds",
 		Settable: false,
@@ -3821,8 +6375,14 @@ func SimVarGpsEta() SimVar {
 }
 
 // SimVarGpsWpNextLat Simvar
-func SimVarGpsWpNextLat() SimVar {
+// args contain optional index
+func SimVarGpsWpNextLat(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP NEXT LAT",
 		Units:    "Degrees",
 		Settable: false,
@@ -3830,8 +6390,14 @@ func SimVarGpsWpNextLat() SimVar {
 }
 
 // SimVarGpsWpNextLon Simvar
-func SimVarGpsWpNextLon() SimVar {
+// args contain optional index
+func SimVarGpsWpNextLon(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP NEXT LON",
 		Units:    "Degrees",
 		Settable: false,
@@ -3839,8 +6405,14 @@ func SimVarGpsWpNextLon() SimVar {
 }
 
 // SimVarGpsWpNextAlt Simvar
-func SimVarGpsWpNextAlt() SimVar {
+// args contain optional index
+func SimVarGpsWpNextAlt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP NEXT ALT",
 		Units:    "Meters",
 		Settable: false,
@@ -3848,8 +6420,14 @@ func SimVarGpsWpNextAlt() SimVar {
 }
 
 // SimVarGpsWpPrevValid Simvar
-func SimVarGpsWpPrevValid() SimVar {
+// args contain optional index
+func SimVarGpsWpPrevValid(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP PREV VALID",
 		Units:    "Bool",
 		Settable: false,
@@ -3857,8 +6435,14 @@ func SimVarGpsWpPrevValid() SimVar {
 }
 
 // SimVarGpsWpPrevLat Simvar
-func SimVarGpsWpPrevLat() SimVar {
+// args contain optional index
+func SimVarGpsWpPrevLat(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP PREV LAT",
 		Units:    "Degrees",
 		Settable: false,
@@ -3866,8 +6450,14 @@ func SimVarGpsWpPrevLat() SimVar {
 }
 
 // SimVarGpsWpPrevLon Simvar
-func SimVarGpsWpPrevLon() SimVar {
+// args contain optional index
+func SimVarGpsWpPrevLon(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP PREV LON",
 		Units:    "Degrees",
 		Settable: false,
@@ -3875,8 +6465,14 @@ func SimVarGpsWpPrevLon() SimVar {
 }
 
 // SimVarGpsWpPrevAlt Simvar
-func SimVarGpsWpPrevAlt() SimVar {
+// args contain optional index
+func SimVarGpsWpPrevAlt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP PREV ALT",
 		Units:    "Meters",
 		Settable: false,
@@ -3884,8 +6480,14 @@ func SimVarGpsWpPrevAlt() SimVar {
 }
 
 // SimVarGpsWpEte Simvar
-func SimVarGpsWpEte() SimVar {
+// args contain optional index
+func SimVarGpsWpEte(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP ETE",
 		Units:    "Seconds",
 		Settable: false,
@@ -3893,8 +6495,14 @@ func SimVarGpsWpEte() SimVar {
 }
 
 // SimVarGpsWpEta Simvar
-func SimVarGpsWpEta() SimVar {
+// args contain optional index
+func SimVarGpsWpEta(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP ETA",
 		Units:    "Seconds",
 		Settable: false,
@@ -3902,8 +6510,14 @@ func SimVarGpsWpEta() SimVar {
 }
 
 // SimVarGpsCourseToSteer Simvar
-func SimVarGpsCourseToSteer() SimVar {
+// args contain optional index
+func SimVarGpsCourseToSteer(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS COURSE TO STEER",
 		Units:    "Radians",
 		Settable: false,
@@ -3911,8 +6525,14 @@ func SimVarGpsCourseToSteer() SimVar {
 }
 
 // SimVarGpsFlightPlanWpIndex Simvar
-func SimVarGpsFlightPlanWpIndex() SimVar {
+// args contain optional index
+func SimVarGpsFlightPlanWpIndex(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS FLIGHT PLAN WP INDEX",
 		Units:    "Number",
 		Settable: false,
@@ -3920,8 +6540,14 @@ func SimVarGpsFlightPlanWpIndex() SimVar {
 }
 
 // SimVarGpsFlightPlanWpCount Simvar
-func SimVarGpsFlightPlanWpCount() SimVar {
+// args contain optional index
+func SimVarGpsFlightPlanWpCount(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS FLIGHT PLAN WP COUNT",
 		Units:    "Number",
 		Settable: false,
@@ -3929,8 +6555,14 @@ func SimVarGpsFlightPlanWpCount() SimVar {
 }
 
 // SimVarGpsIsActiveWpLocked Simvar
-func SimVarGpsIsActiveWpLocked() SimVar {
+// args contain optional index
+func SimVarGpsIsActiveWpLocked(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS ACTIVE WP LOCKED",
 		Units:    "Bool",
 		Settable: false,
@@ -3938,8 +6570,14 @@ func SimVarGpsIsActiveWpLocked() SimVar {
 }
 
 // SimVarGpsIsApproachLoaded Simvar
-func SimVarGpsIsApproachLoaded() SimVar {
+// args contain optional index
+func SimVarGpsIsApproachLoaded(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS APPROACH LOADED",
 		Units:    "Bool",
 		Settable: false,
@@ -3947,8 +6585,14 @@ func SimVarGpsIsApproachLoaded() SimVar {
 }
 
 // SimVarGpsIsApproachActive Simvar
-func SimVarGpsIsApproachActive() SimVar {
+// args contain optional index
+func SimVarGpsIsApproachActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS IS APPROACH ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -3956,8 +6600,14 @@ func SimVarGpsIsApproachActive() SimVar {
 }
 
 // SimVarGpsApproachMode Simvar
-func SimVarGpsApproachMode() SimVar {
+// args contain optional index
+func SimVarGpsApproachMode(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH MODE",
 		Units:    "Enum",
 		Settable: false,
@@ -3965,8 +6615,14 @@ func SimVarGpsApproachMode() SimVar {
 }
 
 // SimVarGpsApproachWpType Simvar
-func SimVarGpsApproachWpType() SimVar {
+// args contain optional index
+func SimVarGpsApproachWpType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH WP TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -3974,8 +6630,14 @@ func SimVarGpsApproachWpType() SimVar {
 }
 
 // SimVarGpsApproachIsWpRunway Simvar
-func SimVarGpsApproachIsWpRunway() SimVar {
+// args contain optional index
+func SimVarGpsApproachIsWpRunway(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH IS WP RUNWAY",
 		Units:    "Bool",
 		Settable: false,
@@ -3983,8 +6645,14 @@ func SimVarGpsApproachIsWpRunway() SimVar {
 }
 
 // SimVarGpsApproachSegmentType Simvar
-func SimVarGpsApproachSegmentType() SimVar {
+// args contain optional index
+func SimVarGpsApproachSegmentType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH SEGMENT TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -3992,8 +6660,14 @@ func SimVarGpsApproachSegmentType() SimVar {
 }
 
 // SimVarGpsApproachApproachIndex Simvar
-func SimVarGpsApproachApproachIndex() SimVar {
+// args contain optional index
+func SimVarGpsApproachApproachIndex(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH APPROACH INDEX",
 		Units:    "Number",
 		Settable: false,
@@ -4001,8 +6675,14 @@ func SimVarGpsApproachApproachIndex() SimVar {
 }
 
 // SimVarGpsApproachApproachType Simvar
-func SimVarGpsApproachApproachType() SimVar {
+// args contain optional index
+func SimVarGpsApproachApproachType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH APPROACH TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -4010,8 +6690,14 @@ func SimVarGpsApproachApproachType() SimVar {
 }
 
 // SimVarGpsApproachTransitionIndex Simvar
-func SimVarGpsApproachTransitionIndex() SimVar {
+// args contain optional index
+func SimVarGpsApproachTransitionIndex(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH TRANSITION INDEX",
 		Units:    "Number",
 		Settable: false,
@@ -4019,8 +6705,14 @@ func SimVarGpsApproachTransitionIndex() SimVar {
 }
 
 // SimVarGpsApproachIsFinal Simvar
-func SimVarGpsApproachIsFinal() SimVar {
+// args contain optional index
+func SimVarGpsApproachIsFinal(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH IS FINAL",
 		Units:    "Bool",
 		Settable: false,
@@ -4028,8 +6720,14 @@ func SimVarGpsApproachIsFinal() SimVar {
 }
 
 // SimVarGpsApproachIsMissed Simvar
-func SimVarGpsApproachIsMissed() SimVar {
+// args contain optional index
+func SimVarGpsApproachIsMissed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH IS MISSED",
 		Units:    "Bool",
 		Settable: false,
@@ -4037,8 +6735,14 @@ func SimVarGpsApproachIsMissed() SimVar {
 }
 
 // SimVarGpsApproachTimezoneDeviation Simvar
-func SimVarGpsApproachTimezoneDeviation() SimVar {
+// args contain optional index
+func SimVarGpsApproachTimezoneDeviation(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH TIMEZONE DEVIATION",
 		Units:    "Seconds",
 		Settable: false,
@@ -4046,8 +6750,14 @@ func SimVarGpsApproachTimezoneDeviation() SimVar {
 }
 
 // SimVarGpsApproachWpIndex Simvar
-func SimVarGpsApproachWpIndex() SimVar {
+// args contain optional index
+func SimVarGpsApproachWpIndex(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH WP INDEX",
 		Units:    "Number",
 		Settable: false,
@@ -4055,8 +6765,14 @@ func SimVarGpsApproachWpIndex() SimVar {
 }
 
 // SimVarGpsApproachWpCount Simvar
-func SimVarGpsApproachWpCount() SimVar {
+// args contain optional index
+func SimVarGpsApproachWpCount(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH WP COUNT",
 		Units:    "Number",
 		Settable: false,
@@ -4064,8 +6780,13 @@ func SimVarGpsApproachWpCount() SimVar {
 }
 
 // SimVarGpsDrivesNav1 Simvar
-func SimVarGpsDrivesNav1() SimVar {
+func SimVarGpsDrivesNav1(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS DRIVES NAV1",
 		Units:    "Bool",
 		Settable: false,
@@ -4073,8 +6794,14 @@ func SimVarGpsDrivesNav1() SimVar {
 }
 
 // SimVarComReceiveAll Simvar
-func SimVarComReceiveAll() SimVar {
+// args contain optional index
+func SimVarComReceiveAll(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM RECEIVE ALL",
 		Units:    "Bool",
 		Settable: false,
@@ -4082,8 +6809,14 @@ func SimVarComReceiveAll() SimVar {
 }
 
 // SimVarComAvailable Simvar
-func SimVarComAvailable() SimVar {
+// args contain optional index
+func SimVarComAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4091,8 +6824,14 @@ func SimVarComAvailable() SimVar {
 }
 
 // SimVarComTest Simvar
-func SimVarComTest() SimVar {
+// args contain optional index
+func SimVarComTest(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "COM TEST:index",
 		Units:    "Bool",
 		Settable: false,
@@ -4100,8 +6839,14 @@ func SimVarComTest() SimVar {
 }
 
 // SimVarTransponderAvailable Simvar
-func SimVarTransponderAvailable() SimVar {
+// args contain optional index
+func SimVarTransponderAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRANSPONDER AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4109,8 +6854,14 @@ func SimVarTransponderAvailable() SimVar {
 }
 
 // SimVarAdfAvailable Simvar
-func SimVarAdfAvailable() SimVar {
+// args contain optional index
+func SimVarAdfAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4118,8 +6869,14 @@ func SimVarAdfAvailable() SimVar {
 }
 
 // SimVarAdfFrequency Simvar
-func SimVarAdfFrequency() SimVar {
+// args contain optional index
+func SimVarAdfFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF FREQUENCY:index",
 		Units:    "Frequency BCD16",
 		Settable: false,
@@ -4127,8 +6884,14 @@ func SimVarAdfFrequency() SimVar {
 }
 
 // SimVarAdfExtFrequency Simvar
-func SimVarAdfExtFrequency() SimVar {
+// args contain optional index
+func SimVarAdfExtFrequency(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF EXT FREQUENCY:index",
 		Units:    "Frequency BCD16",
 		Settable: false,
@@ -4136,8 +6899,14 @@ func SimVarAdfExtFrequency() SimVar {
 }
 
 // SimVarAdfIdent Simvar
-func SimVarAdfIdent() SimVar {
+// args contain optional index
+func SimVarAdfIdent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF IDENT",
 		Units:    "String",
 		Settable: false,
@@ -4145,8 +6914,14 @@ func SimVarAdfIdent() SimVar {
 }
 
 // SimVarAdfName Simvar
-func SimVarAdfName() SimVar {
+// args contain optional index
+func SimVarAdfName(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ADF NAME",
 		Units:    "String",
 		Settable: false,
@@ -4154,8 +6929,14 @@ func SimVarAdfName() SimVar {
 }
 
 // SimVarNavIdent Simvar
-func SimVarNavIdent() SimVar {
+// args contain optional index
+func SimVarNavIdent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV IDENT",
 		Units:    "String",
 		Settable: false,
@@ -4163,8 +6944,14 @@ func SimVarNavIdent() SimVar {
 }
 
 // SimVarNavName Simvar
-func SimVarNavName() SimVar {
+// args contain optional index
+func SimVarNavName(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV NAME",
 		Units:    "String",
 		Settable: false,
@@ -4172,8 +6959,14 @@ func SimVarNavName() SimVar {
 }
 
 // SimVarNavCodes Simvar
-func SimVarNavCodes() SimVar {
+// args contain optional index
+func SimVarNavCodes(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV CODES:index",
 		Units:    "Flags",
 		Settable: false,
@@ -4181,8 +6974,14 @@ func SimVarNavCodes() SimVar {
 }
 
 // SimVarNavGlideSlope Simvar
-func SimVarNavGlideSlope() SimVar {
+// args contain optional index
+func SimVarNavGlideSlope(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GLIDE SLOPE",
 		Units:    "Number",
 		Settable: false,
@@ -4190,8 +6989,14 @@ func SimVarNavGlideSlope() SimVar {
 }
 
 // SimVarNavRelativeBearingToStation Simvar
-func SimVarNavRelativeBearingToStation() SimVar {
+// args contain optional index
+func SimVarNavRelativeBearingToStation(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV RELATIVE BEARING TO STATION:index",
 		Units:    "Degrees",
 		Settable: false,
@@ -4199,8 +7004,14 @@ func SimVarNavRelativeBearingToStation() SimVar {
 }
 
 // SimVarSelectedDme Simvar
-func SimVarSelectedDme() SimVar {
+// args contain optional index
+func SimVarSelectedDme(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SELECTED DME",
 		Units:    "Number",
 		Settable: false,
@@ -4208,8 +7019,14 @@ func SimVarSelectedDme() SimVar {
 }
 
 // SimVarGpsWpNextId Simvar
-func SimVarGpsWpNextId() SimVar {
+// args contain optional index
+func SimVarGpsWpNextId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP NEXT ID",
 		Units:    "String",
 		Settable: false,
@@ -4217,8 +7034,14 @@ func SimVarGpsWpNextId() SimVar {
 }
 
 // SimVarGpsWpPrevId Simvar
-func SimVarGpsWpPrevId() SimVar {
+// args contain optional index
+func SimVarGpsWpPrevId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS WP PREV ID",
 		Units:    "String",
 		Settable: false,
@@ -4226,8 +7049,14 @@ func SimVarGpsWpPrevId() SimVar {
 }
 
 // SimVarGpsTargetDistance Simvar
-func SimVarGpsTargetDistance() SimVar {
+// args contain optional index
+func SimVarGpsTargetDistance(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS TARGET DISTANCE",
 		Units:    "Meters",
 		Settable: false,
@@ -4235,8 +7064,14 @@ func SimVarGpsTargetDistance() SimVar {
 }
 
 // SimVarGpsTargetAltitude Simvar
-func SimVarGpsTargetAltitude() SimVar {
+// args contain optional index
+func SimVarGpsTargetAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS TARGET ALTITUDE",
 		Units:    "Meters",
 		Settable: false,
@@ -4244,8 +7079,14 @@ func SimVarGpsTargetAltitude() SimVar {
 }
 
 // SimVarYokeYPosition Simvar
-func SimVarYokeYPosition() SimVar {
+// args contain optional index
+func SimVarYokeYPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YOKE Y POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4253,8 +7094,14 @@ func SimVarYokeYPosition() SimVar {
 }
 
 // SimVarYokeXPosition Simvar
-func SimVarYokeXPosition() SimVar {
+// args contain optional index
+func SimVarYokeXPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YOKE X POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4262,8 +7109,14 @@ func SimVarYokeXPosition() SimVar {
 }
 
 // SimVarRudderPedalPosition Simvar
-func SimVarRudderPedalPosition() SimVar {
+// args contain optional index
+func SimVarRudderPedalPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER PEDAL POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4271,8 +7124,14 @@ func SimVarRudderPedalPosition() SimVar {
 }
 
 // SimVarRudderPosition Simvar
-func SimVarRudderPosition() SimVar {
+// args contain optional index
+func SimVarRudderPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4280,8 +7139,14 @@ func SimVarRudderPosition() SimVar {
 }
 
 // SimVarElevatorPosition Simvar
-func SimVarElevatorPosition() SimVar {
+// args contain optional index
+func SimVarElevatorPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4289,8 +7154,14 @@ func SimVarElevatorPosition() SimVar {
 }
 
 // SimVarAileronPosition Simvar
-func SimVarAileronPosition() SimVar {
+// args contain optional index
+func SimVarAileronPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4298,8 +7169,14 @@ func SimVarAileronPosition() SimVar {
 }
 
 // SimVarElevatorTrimPosition Simvar
-func SimVarElevatorTrimPosition() SimVar {
+// args contain optional index
+func SimVarElevatorTrimPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR TRIM POSITION",
 		Units:    "Radians",
 		Settable: true,
@@ -4307,8 +7184,14 @@ func SimVarElevatorTrimPosition() SimVar {
 }
 
 // SimVarElevatorTrimIndicator Simvar
-func SimVarElevatorTrimIndicator() SimVar {
+// args contain optional index
+func SimVarElevatorTrimIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR TRIM INDICATOR",
 		Units:    "Position",
 		Settable: false,
@@ -4316,8 +7199,14 @@ func SimVarElevatorTrimIndicator() SimVar {
 }
 
 // SimVarElevatorTrimPct Simvar
-func SimVarElevatorTrimPct() SimVar {
+// args contain optional index
+func SimVarElevatorTrimPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR TRIM PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4325,8 +7214,14 @@ func SimVarElevatorTrimPct() SimVar {
 }
 
 // SimVarBrakeLeftPosition Simvar
-func SimVarBrakeLeftPosition() SimVar {
+// args contain optional index
+func SimVarBrakeLeftPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE LEFT POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4334,8 +7229,14 @@ func SimVarBrakeLeftPosition() SimVar {
 }
 
 // SimVarBrakeRightPosition Simvar
-func SimVarBrakeRightPosition() SimVar {
+// args contain optional index
+func SimVarBrakeRightPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE RIGHT POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4343,8 +7244,14 @@ func SimVarBrakeRightPosition() SimVar {
 }
 
 // SimVarBrakeIndicator Simvar
-func SimVarBrakeIndicator() SimVar {
+// args contain optional index
+func SimVarBrakeIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE INDICATOR",
 		Units:    "Position",
 		Settable: false,
@@ -4352,8 +7259,14 @@ func SimVarBrakeIndicator() SimVar {
 }
 
 // SimVarBrakeParkingPosition Simvar
-func SimVarBrakeParkingPosition() SimVar {
+// args contain optional index
+func SimVarBrakeParkingPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE PARKING POSITION",
 		Units:    "Position",
 		Settable: true,
@@ -4361,8 +7274,14 @@ func SimVarBrakeParkingPosition() SimVar {
 }
 
 // SimVarBrakeParkingIndicator Simvar
-func SimVarBrakeParkingIndicator() SimVar {
+// args contain optional index
+func SimVarBrakeParkingIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE PARKING INDICATOR",
 		Units:    "Bool",
 		Settable: false,
@@ -4370,8 +7289,14 @@ func SimVarBrakeParkingIndicator() SimVar {
 }
 
 // SimVarSpoilersArmed Simvar
-func SimVarSpoilersArmed() SimVar {
+// args contain optional index
+func SimVarSpoilersArmed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SPOILERS ARMED",
 		Units:    "Bool",
 		Settable: false,
@@ -4379,8 +7304,14 @@ func SimVarSpoilersArmed() SimVar {
 }
 
 // SimVarSpoilersHandlePosition Simvar
-func SimVarSpoilersHandlePosition() SimVar {
+// args contain optional index
+func SimVarSpoilersHandlePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SPOILERS HANDLE POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4388,8 +7319,14 @@ func SimVarSpoilersHandlePosition() SimVar {
 }
 
 // SimVarSpoilersLeftPosition Simvar
-func SimVarSpoilersLeftPosition() SimVar {
+// args contain optional index
+func SimVarSpoilersLeftPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SPOILERS LEFT POSITION",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4397,8 +7334,14 @@ func SimVarSpoilersLeftPosition() SimVar {
 }
 
 // SimVarSpoilersRightPosition Simvar
-func SimVarSpoilersRightPosition() SimVar {
+// args contain optional index
+func SimVarSpoilersRightPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SPOILERS RIGHT POSITION",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4406,8 +7349,14 @@ func SimVarSpoilersRightPosition() SimVar {
 }
 
 // SimVarFlapsHandlePercent Simvar
-func SimVarFlapsHandlePercent() SimVar {
+// args contain optional index
+func SimVarFlapsHandlePercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAPS HANDLE PERCENT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4415,8 +7364,14 @@ func SimVarFlapsHandlePercent() SimVar {
 }
 
 // SimVarFlapsHandleIndex Simvar
-func SimVarFlapsHandleIndex() SimVar {
+// args contain optional index
+func SimVarFlapsHandleIndex(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAPS HANDLE INDEX",
 		Units:    "Number",
 		Settable: true,
@@ -4424,8 +7379,14 @@ func SimVarFlapsHandleIndex() SimVar {
 }
 
 // SimVarFlapsNumHandlePositions Simvar
-func SimVarFlapsNumHandlePositions() SimVar {
+// args contain optional index
+func SimVarFlapsNumHandlePositions(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAPS NUM HANDLE POSITIONS",
 		Units:    "Number",
 		Settable: false,
@@ -4433,8 +7394,14 @@ func SimVarFlapsNumHandlePositions() SimVar {
 }
 
 // SimVarTrailingEdgeFlapsLeftPercent Simvar
-func SimVarTrailingEdgeFlapsLeftPercent() SimVar {
+// args contain optional index
+func SimVarTrailingEdgeFlapsLeftPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRAILING EDGE FLAPS LEFT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4442,8 +7409,14 @@ func SimVarTrailingEdgeFlapsLeftPercent() SimVar {
 }
 
 // SimVarTrailingEdgeFlapsRightPercent Simvar
-func SimVarTrailingEdgeFlapsRightPercent() SimVar {
+// args contain optional index
+func SimVarTrailingEdgeFlapsRightPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRAILING EDGE FLAPS RIGHT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4451,8 +7424,14 @@ func SimVarTrailingEdgeFlapsRightPercent() SimVar {
 }
 
 // SimVarTrailingEdgeFlapsLeftAngle Simvar
-func SimVarTrailingEdgeFlapsLeftAngle() SimVar {
+// args contain optional index
+func SimVarTrailingEdgeFlapsLeftAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRAILING EDGE FLAPS LEFT ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -4460,8 +7439,14 @@ func SimVarTrailingEdgeFlapsLeftAngle() SimVar {
 }
 
 // SimVarTrailingEdgeFlapsRightAngle Simvar
-func SimVarTrailingEdgeFlapsRightAngle() SimVar {
+// args contain optional index
+func SimVarTrailingEdgeFlapsRightAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRAILING EDGE FLAPS RIGHT ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -4469,8 +7454,14 @@ func SimVarTrailingEdgeFlapsRightAngle() SimVar {
 }
 
 // SimVarLeadingEdgeFlapsLeftPercent Simvar
-func SimVarLeadingEdgeFlapsLeftPercent() SimVar {
+// args contain optional index
+func SimVarLeadingEdgeFlapsLeftPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEADING EDGE FLAPS LEFT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4478,8 +7469,14 @@ func SimVarLeadingEdgeFlapsLeftPercent() SimVar {
 }
 
 // SimVarLeadingEdgeFlapsRightPercent Simvar
-func SimVarLeadingEdgeFlapsRightPercent() SimVar {
+// args contain optional index
+func SimVarLeadingEdgeFlapsRightPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEADING EDGE FLAPS RIGHT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4487,8 +7484,14 @@ func SimVarLeadingEdgeFlapsRightPercent() SimVar {
 }
 
 // SimVarLeadingEdgeFlapsLeftAngle Simvar
-func SimVarLeadingEdgeFlapsLeftAngle() SimVar {
+// args contain optional index
+func SimVarLeadingEdgeFlapsLeftAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEADING EDGE FLAPS LEFT ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -4496,8 +7499,14 @@ func SimVarLeadingEdgeFlapsLeftAngle() SimVar {
 }
 
 // SimVarLeadingEdgeFlapsRightAngle Simvar
-func SimVarLeadingEdgeFlapsRightAngle() SimVar {
+// args contain optional index
+func SimVarLeadingEdgeFlapsRightAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEADING EDGE FLAPS RIGHT ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -4505,8 +7514,14 @@ func SimVarLeadingEdgeFlapsRightAngle() SimVar {
 }
 
 // SimVarIsGearRetractable Simvar
-func SimVarIsGearRetractable() SimVar {
+// args contain optional index
+func SimVarIsGearRetractable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS GEAR RETRACTABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4514,8 +7529,14 @@ func SimVarIsGearRetractable() SimVar {
 }
 
 // SimVarIsGearSkis Simvar
-func SimVarIsGearSkis() SimVar {
+// args contain optional index
+func SimVarIsGearSkis(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS GEAR SKIS",
 		Units:    "Bool",
 		Settable: false,
@@ -4523,8 +7544,14 @@ func SimVarIsGearSkis() SimVar {
 }
 
 // SimVarIsGearFloats Simvar
-func SimVarIsGearFloats() SimVar {
+// args contain optional index
+func SimVarIsGearFloats(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS GEAR FLOATS",
 		Units:    "Bool",
 		Settable: false,
@@ -4532,8 +7559,14 @@ func SimVarIsGearFloats() SimVar {
 }
 
 // SimVarIsGearSkids Simvar
-func SimVarIsGearSkids() SimVar {
+// args contain optional index
+func SimVarIsGearSkids(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS GEAR SKIDS",
 		Units:    "Bool",
 		Settable: false,
@@ -4541,8 +7574,14 @@ func SimVarIsGearSkids() SimVar {
 }
 
 // SimVarIsGearWheels Simvar
-func SimVarIsGearWheels() SimVar {
+// args contain optional index
+func SimVarIsGearWheels(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS GEAR WHEELS",
 		Units:    "Bool",
 		Settable: false,
@@ -4550,8 +7589,14 @@ func SimVarIsGearWheels() SimVar {
 }
 
 // SimVarGearHandlePosition Simvar
-func SimVarGearHandlePosition() SimVar {
+// args contain optional index
+func SimVarGearHandlePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR HANDLE POSITION",
 		Units:    "Bool",
 		Settable: true,
@@ -4559,8 +7604,14 @@ func SimVarGearHandlePosition() SimVar {
 }
 
 // SimVarGearHydraulicPressure Simvar
-func SimVarGearHydraulicPressure() SimVar {
+// args contain optional index
+func SimVarGearHydraulicPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR HYDRAULIC PRESSURE",
 		Units:    "psf",
 		Settable: false,
@@ -4568,8 +7619,14 @@ func SimVarGearHydraulicPressure() SimVar {
 }
 
 // SimVarTailwheelLockOn Simvar
-func SimVarTailwheelLockOn() SimVar {
+// args contain optional index
+func SimVarTailwheelLockOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TAILWHEEL LOCK ON",
 		Units:    "Bool",
 		Settable: false,
@@ -4577,8 +7634,14 @@ func SimVarTailwheelLockOn() SimVar {
 }
 
 // SimVarGearCenterPosition Simvar
-func SimVarGearCenterPosition() SimVar {
+// args contain optional index
+func SimVarGearCenterPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR CENTER POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4586,8 +7649,14 @@ func SimVarGearCenterPosition() SimVar {
 }
 
 // SimVarGearLeftPosition Simvar
-func SimVarGearLeftPosition() SimVar {
+// args contain optional index
+func SimVarGearLeftPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR LEFT POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4595,8 +7664,14 @@ func SimVarGearLeftPosition() SimVar {
 }
 
 // SimVarGearRightPosition Simvar
-func SimVarGearRightPosition() SimVar {
+// args contain optional index
+func SimVarGearRightPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR RIGHT POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4604,8 +7679,14 @@ func SimVarGearRightPosition() SimVar {
 }
 
 // SimVarGearTailPosition Simvar
-func SimVarGearTailPosition() SimVar {
+// args contain optional index
+func SimVarGearTailPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR TAIL POSITION",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4613,8 +7694,14 @@ func SimVarGearTailPosition() SimVar {
 }
 
 // SimVarGearAuxPosition Simvar
-func SimVarGearAuxPosition() SimVar {
+// args contain optional index
+func SimVarGearAuxPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR AUX POSITION",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4622,8 +7709,14 @@ func SimVarGearAuxPosition() SimVar {
 }
 
 // SimVarGearPosition Simvar
-func SimVarGearPosition() SimVar {
+// args contain optional index
+func SimVarGearPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR POSITION:index",
 		Units:    "Enum",
 		Settable: true,
@@ -4631,8 +7724,14 @@ func SimVarGearPosition() SimVar {
 }
 
 // SimVarGearAnimationPosition Simvar
-func SimVarGearAnimationPosition() SimVar {
+// args contain optional index
+func SimVarGearAnimationPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR ANIMATION POSITION:index",
 		Units:    "Number",
 		Settable: false,
@@ -4640,8 +7739,14 @@ func SimVarGearAnimationPosition() SimVar {
 }
 
 // SimVarGearTotalPctExtended Simvar
-func SimVarGearTotalPctExtended() SimVar {
+// args contain optional index
+func SimVarGearTotalPctExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR TOTAL PCT EXTENDED",
 		Units:    "Percentage",
 		Settable: false,
@@ -4649,8 +7754,14 @@ func SimVarGearTotalPctExtended() SimVar {
 }
 
 // SimVarAutoBrakeSwitchCb Simvar
-func SimVarAutoBrakeSwitchCb() SimVar {
+// args contain optional index
+func SimVarAutoBrakeSwitchCb(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTO BRAKE SWITCH CB",
 		Units:    "Number",
 		Settable: false,
@@ -4658,8 +7769,14 @@ func SimVarAutoBrakeSwitchCb() SimVar {
 }
 
 // SimVarWaterRudderHandlePosition Simvar
-func SimVarWaterRudderHandlePosition() SimVar {
+// args contain optional index
+func SimVarWaterRudderHandlePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER RUDDER HANDLE POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -4667,8 +7784,14 @@ func SimVarWaterRudderHandlePosition() SimVar {
 }
 
 // SimVarElevatorDeflection Simvar
-func SimVarElevatorDeflection() SimVar {
+// args contain optional index
+func SimVarElevatorDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -4676,8 +7799,14 @@ func SimVarElevatorDeflection() SimVar {
 }
 
 // SimVarElevatorDeflectionPct Simvar
-func SimVarElevatorDeflectionPct() SimVar {
+// args contain optional index
+func SimVarElevatorDeflectionPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVATOR DEFLECTION PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4685,8 +7814,14 @@ func SimVarElevatorDeflectionPct() SimVar {
 }
 
 // SimVarWaterLeftRudderExtended Simvar
-func SimVarWaterLeftRudderExtended() SimVar {
+// args contain optional index
+func SimVarWaterLeftRudderExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER LEFT RUDDER EXTENDED",
 		Units:    "Percentage",
 		Settable: false,
@@ -4694,8 +7829,14 @@ func SimVarWaterLeftRudderExtended() SimVar {
 }
 
 // SimVarWaterRightRudderExtended Simvar
-func SimVarWaterRightRudderExtended() SimVar {
+// args contain optional index
+func SimVarWaterRightRudderExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER RIGHT RUDDER EXTENDED",
 		Units:    "Percentage",
 		Settable: false,
@@ -4703,8 +7844,14 @@ func SimVarWaterRightRudderExtended() SimVar {
 }
 
 // SimVarGearCenterSteerAngle Simvar
-func SimVarGearCenterSteerAngle() SimVar {
+// args contain optional index
+func SimVarGearCenterSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR CENTER STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4712,8 +7859,14 @@ func SimVarGearCenterSteerAngle() SimVar {
 }
 
 // SimVarGearLeftSteerAngle Simvar
-func SimVarGearLeftSteerAngle() SimVar {
+// args contain optional index
+func SimVarGearLeftSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR LEFT STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4721,8 +7874,14 @@ func SimVarGearLeftSteerAngle() SimVar {
 }
 
 // SimVarGearRightSteerAngle Simvar
-func SimVarGearRightSteerAngle() SimVar {
+// args contain optional index
+func SimVarGearRightSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR RIGHT STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4730,8 +7889,14 @@ func SimVarGearRightSteerAngle() SimVar {
 }
 
 // SimVarGearAuxSteerAngle Simvar
-func SimVarGearAuxSteerAngle() SimVar {
+// args contain optional index
+func SimVarGearAuxSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR AUX STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4739,8 +7904,14 @@ func SimVarGearAuxSteerAngle() SimVar {
 }
 
 // SimVarGearSteerAngle Simvar
-func SimVarGearSteerAngle() SimVar {
+// args contain optional index
+func SimVarGearSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR STEER ANGLE:index",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4748,8 +7919,14 @@ func SimVarGearSteerAngle() SimVar {
 }
 
 // SimVarWaterLeftRudderSteerAngle Simvar
-func SimVarWaterLeftRudderSteerAngle() SimVar {
+// args contain optional index
+func SimVarWaterLeftRudderSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER LEFT RUDDER STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4757,8 +7934,14 @@ func SimVarWaterLeftRudderSteerAngle() SimVar {
 }
 
 // SimVarWaterRightRudderSteerAngle Simvar
-func SimVarWaterRightRudderSteerAngle() SimVar {
+// args contain optional index
+func SimVarWaterRightRudderSteerAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER RIGHT RUDDER STEER ANGLE",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4766,8 +7949,14 @@ func SimVarWaterRightRudderSteerAngle() SimVar {
 }
 
 // SimVarGearCenterSteerAnglePct Simvar
-func SimVarGearCenterSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarGearCenterSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR CENTER STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4775,8 +7964,14 @@ func SimVarGearCenterSteerAnglePct() SimVar {
 }
 
 // SimVarGearLeftSteerAnglePct Simvar
-func SimVarGearLeftSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarGearLeftSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR LEFT STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4784,8 +7979,14 @@ func SimVarGearLeftSteerAnglePct() SimVar {
 }
 
 // SimVarGearRightSteerAnglePct Simvar
-func SimVarGearRightSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarGearRightSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR RIGHT STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4793,8 +7994,14 @@ func SimVarGearRightSteerAnglePct() SimVar {
 }
 
 // SimVarGearAuxSteerAnglePct Simvar
-func SimVarGearAuxSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarGearAuxSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR AUX STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4802,8 +8009,14 @@ func SimVarGearAuxSteerAnglePct() SimVar {
 }
 
 // SimVarGearSteerAnglePct Simvar
-func SimVarGearSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarGearSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR STEER ANGLE PCT:index",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4811,8 +8024,14 @@ func SimVarGearSteerAnglePct() SimVar {
 }
 
 // SimVarWaterLeftRudderSteerAnglePct Simvar
-func SimVarWaterLeftRudderSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarWaterLeftRudderSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER LEFT RUDDER STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4820,8 +8039,14 @@ func SimVarWaterLeftRudderSteerAnglePct() SimVar {
 }
 
 // SimVarWaterRightRudderSteerAnglePct Simvar
-func SimVarWaterRightRudderSteerAnglePct() SimVar {
+// args contain optional index
+func SimVarWaterRightRudderSteerAnglePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER RIGHT RUDDER STEER ANGLE PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4829,8 +8054,14 @@ func SimVarWaterRightRudderSteerAnglePct() SimVar {
 }
 
 // SimVarAileronLeftDeflection Simvar
-func SimVarAileronLeftDeflection() SimVar {
+// args contain optional index
+func SimVarAileronLeftDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON LEFT DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -4838,8 +8069,14 @@ func SimVarAileronLeftDeflection() SimVar {
 }
 
 // SimVarAileronLeftDeflectionPct Simvar
-func SimVarAileronLeftDeflectionPct() SimVar {
+// args contain optional index
+func SimVarAileronLeftDeflectionPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON LEFT DEFLECTION PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4847,8 +8084,14 @@ func SimVarAileronLeftDeflectionPct() SimVar {
 }
 
 // SimVarAileronRightDeflection Simvar
-func SimVarAileronRightDeflection() SimVar {
+// args contain optional index
+func SimVarAileronRightDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON RIGHT DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -4856,8 +8099,14 @@ func SimVarAileronRightDeflection() SimVar {
 }
 
 // SimVarAileronRightDeflectionPct Simvar
-func SimVarAileronRightDeflectionPct() SimVar {
+// args contain optional index
+func SimVarAileronRightDeflectionPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON RIGHT DEFLECTION PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4865,8 +8114,14 @@ func SimVarAileronRightDeflectionPct() SimVar {
 }
 
 // SimVarAileronAverageDeflection Simvar
-func SimVarAileronAverageDeflection() SimVar {
+// args contain optional index
+func SimVarAileronAverageDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON AVERAGE DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -4874,8 +8129,14 @@ func SimVarAileronAverageDeflection() SimVar {
 }
 
 // SimVarAileronTrim Simvar
-func SimVarAileronTrim() SimVar {
+// args contain optional index
+func SimVarAileronTrim(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AILERON TRIM",
 		Units:    "Radians",
 		Settable: false,
@@ -4883,8 +8144,14 @@ func SimVarAileronTrim() SimVar {
 }
 
 // SimVarRudderDeflection Simvar
-func SimVarRudderDeflection() SimVar {
+// args contain optional index
+func SimVarRudderDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -4892,8 +8159,14 @@ func SimVarRudderDeflection() SimVar {
 }
 
 // SimVarRudderDeflectionPct Simvar
-func SimVarRudderDeflectionPct() SimVar {
+// args contain optional index
+func SimVarRudderDeflectionPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER DEFLECTION PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -4901,8 +8174,14 @@ func SimVarRudderDeflectionPct() SimVar {
 }
 
 // SimVarRudderTrim Simvar
-func SimVarRudderTrim() SimVar {
+// args contain optional index
+func SimVarRudderTrim(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER TRIM",
 		Units:    "Radians",
 		Settable: false,
@@ -4910,8 +8189,14 @@ func SimVarRudderTrim() SimVar {
 }
 
 // SimVarFlapsAvailable Simvar
-func SimVarFlapsAvailable() SimVar {
+// args contain optional index
+func SimVarFlapsAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAPS AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4919,8 +8204,14 @@ func SimVarFlapsAvailable() SimVar {
 }
 
 // SimVarGearDamageBySpeed Simvar
-func SimVarGearDamageBySpeed() SimVar {
+// args contain optional index
+func SimVarGearDamageBySpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR DAMAGE BY SPEED",
 		Units:    "Bool",
 		Settable: false,
@@ -4928,8 +8219,14 @@ func SimVarGearDamageBySpeed() SimVar {
 }
 
 // SimVarGearSpeedExceeded Simvar
-func SimVarGearSpeedExceeded() SimVar {
+// args contain optional index
+func SimVarGearSpeedExceeded(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR SPEED EXCEEDED",
 		Units:    "Bool",
 		Settable: false,
@@ -4937,8 +8234,14 @@ func SimVarGearSpeedExceeded() SimVar {
 }
 
 // SimVarFlapDamageBySpeed Simvar
-func SimVarFlapDamageBySpeed() SimVar {
+// args contain optional index
+func SimVarFlapDamageBySpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAP DAMAGE BY SPEED",
 		Units:    "Bool",
 		Settable: false,
@@ -4946,8 +8249,14 @@ func SimVarFlapDamageBySpeed() SimVar {
 }
 
 // SimVarFlapSpeedExceeded Simvar
-func SimVarFlapSpeedExceeded() SimVar {
+// args contain optional index
+func SimVarFlapSpeedExceeded(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FLAP SPEED EXCEEDED",
 		Units:    "Bool",
 		Settable: false,
@@ -4955,8 +8264,14 @@ func SimVarFlapSpeedExceeded() SimVar {
 }
 
 // SimVarCenterWheelRpm Simvar
-func SimVarCenterWheelRpm() SimVar {
+// args contain optional index
+func SimVarCenterWheelRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CENTER WHEEL RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -4964,8 +8279,14 @@ func SimVarCenterWheelRpm() SimVar {
 }
 
 // SimVarLeftWheelRpm Simvar
-func SimVarLeftWheelRpm() SimVar {
+// args contain optional index
+func SimVarLeftWheelRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEFT WHEEL RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -4973,8 +8294,14 @@ func SimVarLeftWheelRpm() SimVar {
 }
 
 // SimVarRightWheelRpm Simvar
-func SimVarRightWheelRpm() SimVar {
+// args contain optional index
+func SimVarRightWheelRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RIGHT WHEEL RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -4982,8 +8309,14 @@ func SimVarRightWheelRpm() SimVar {
 }
 
 // SimVarAutopilotAvailable Simvar
-func SimVarAutopilotAvailable() SimVar {
+// args contain optional index
+func SimVarAutopilotAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -4991,8 +8324,14 @@ func SimVarAutopilotAvailable() SimVar {
 }
 
 // SimVarAutopilotMaster Simvar
-func SimVarAutopilotMaster() SimVar {
+// args contain optional index
+func SimVarAutopilotMaster(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT MASTER",
 		Units:    "Bool",
 		Settable: false,
@@ -5000,8 +8339,14 @@ func SimVarAutopilotMaster() SimVar {
 }
 
 // SimVarAutopilotNavSelected Simvar
-func SimVarAutopilotNavSelected() SimVar {
+// args contain optional index
+func SimVarAutopilotNavSelected(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT NAV SELECTED",
 		Units:    "Number",
 		Settable: false,
@@ -5009,8 +8354,14 @@ func SimVarAutopilotNavSelected() SimVar {
 }
 
 // SimVarAutopilotWingLeveler Simvar
-func SimVarAutopilotWingLeveler() SimVar {
+// args contain optional index
+func SimVarAutopilotWingLeveler(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT WING LEVELER",
 		Units:    "Bool",
 		Settable: false,
@@ -5018,8 +8369,14 @@ func SimVarAutopilotWingLeveler() SimVar {
 }
 
 // SimVarAutopilotHeadingLock Simvar
-func SimVarAutopilotHeadingLock() SimVar {
+// args contain optional index
+func SimVarAutopilotHeadingLock(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT HEADING LOCK",
 		Units:    "Bool",
 		Settable: false,
@@ -5027,8 +8384,14 @@ func SimVarAutopilotHeadingLock() SimVar {
 }
 
 // SimVarAutopilotHeadingLockDir Simvar
-func SimVarAutopilotHeadingLockDir() SimVar {
+// args contain optional index
+func SimVarAutopilotHeadingLockDir(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT HEADING LOCK DIR",
 		Units:    "Degrees",
 		Settable: false,
@@ -5036,8 +8399,14 @@ func SimVarAutopilotHeadingLockDir() SimVar {
 }
 
 // SimVarAutopilotAltitudeLock Simvar
-func SimVarAutopilotAltitudeLock() SimVar {
+// args contain optional index
+func SimVarAutopilotAltitudeLock(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT ALTITUDE LOCK",
 		Units:    "Bool",
 		Settable: false,
@@ -5045,8 +8414,14 @@ func SimVarAutopilotAltitudeLock() SimVar {
 }
 
 // SimVarAutopilotAltitudeLockVar Simvar
-func SimVarAutopilotAltitudeLockVar() SimVar {
+// args contain optional index
+func SimVarAutopilotAltitudeLockVar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT ALTITUDE LOCK VAR",
 		Units:    "Feet",
 		Settable: false,
@@ -5054,8 +8429,14 @@ func SimVarAutopilotAltitudeLockVar() SimVar {
 }
 
 // SimVarAutopilotAttitudeHold Simvar
-func SimVarAutopilotAttitudeHold() SimVar {
+// args contain optional index
+func SimVarAutopilotAttitudeHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT ATTITUDE HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5063,8 +8444,14 @@ func SimVarAutopilotAttitudeHold() SimVar {
 }
 
 // SimVarAutopilotGlideslopeHold Simvar
-func SimVarAutopilotGlideslopeHold() SimVar {
+// args contain optional index
+func SimVarAutopilotGlideslopeHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT GLIDESLOPE HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5072,8 +8459,14 @@ func SimVarAutopilotGlideslopeHold() SimVar {
 }
 
 // SimVarAutopilotPitchHoldRef Simvar
-func SimVarAutopilotPitchHoldRef() SimVar {
+// args contain optional index
+func SimVarAutopilotPitchHoldRef(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT PITCH HOLD REF",
 		Units:    "Radians",
 		Settable: false,
@@ -5081,8 +8474,14 @@ func SimVarAutopilotPitchHoldRef() SimVar {
 }
 
 // SimVarAutopilotApproachHold Simvar
-func SimVarAutopilotApproachHold() SimVar {
+// args contain optional index
+func SimVarAutopilotApproachHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT APPROACH HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5090,8 +8489,14 @@ func SimVarAutopilotApproachHold() SimVar {
 }
 
 // SimVarAutopilotBackcourseHold Simvar
-func SimVarAutopilotBackcourseHold() SimVar {
+// args contain optional index
+func SimVarAutopilotBackcourseHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT BACKCOURSE HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5099,8 +8504,14 @@ func SimVarAutopilotBackcourseHold() SimVar {
 }
 
 // SimVarAutopilotVerticalHoldVar Simvar
-func SimVarAutopilotVerticalHoldVar() SimVar {
+// args contain optional index
+func SimVarAutopilotVerticalHoldVar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT VERTICAL HOLD VAR",
 		Units:    "Feet/minute",
 		Settable: false,
@@ -5108,8 +8519,14 @@ func SimVarAutopilotVerticalHoldVar() SimVar {
 }
 
 // SimVarAutopilotFlightDirectorActive Simvar
-func SimVarAutopilotFlightDirectorActive() SimVar {
+// args contain optional index
+func SimVarAutopilotFlightDirectorActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5117,8 +8534,14 @@ func SimVarAutopilotFlightDirectorActive() SimVar {
 }
 
 // SimVarAutopilotFlightDirectorPitch Simvar
-func SimVarAutopilotFlightDirectorPitch() SimVar {
+// args contain optional index
+func SimVarAutopilotFlightDirectorPitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR PITCH",
 		Units:    "Radians",
 		Settable: false,
@@ -5126,8 +8549,14 @@ func SimVarAutopilotFlightDirectorPitch() SimVar {
 }
 
 // SimVarAutopilotFlightDirectorBank Simvar
-func SimVarAutopilotFlightDirectorBank() SimVar {
+// args contain optional index
+func SimVarAutopilotFlightDirectorBank(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR BANK",
 		Units:    "Radians",
 		Settable: false,
@@ -5135,8 +8564,14 @@ func SimVarAutopilotFlightDirectorBank() SimVar {
 }
 
 // SimVarAutopilotAirspeedHold Simvar
-func SimVarAutopilotAirspeedHold() SimVar {
+// args contain optional index
+func SimVarAutopilotAirspeedHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT AIRSPEED HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5144,8 +8579,14 @@ func SimVarAutopilotAirspeedHold() SimVar {
 }
 
 // SimVarAutopilotAirspeedHoldVar Simvar
-func SimVarAutopilotAirspeedHoldVar() SimVar {
+// args contain optional index
+func SimVarAutopilotAirspeedHoldVar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT AIRSPEED HOLD VAR",
 		Units:    "Knots",
 		Settable: false,
@@ -5153,8 +8594,14 @@ func SimVarAutopilotAirspeedHoldVar() SimVar {
 }
 
 // SimVarAutopilotMachHold Simvar
-func SimVarAutopilotMachHold() SimVar {
+// args contain optional index
+func SimVarAutopilotMachHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT MACH HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5162,8 +8609,14 @@ func SimVarAutopilotMachHold() SimVar {
 }
 
 // SimVarAutopilotMachHoldVar Simvar
-func SimVarAutopilotMachHoldVar() SimVar {
+// args contain optional index
+func SimVarAutopilotMachHoldVar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT MACH HOLD VAR",
 		Units:    "Number",
 		Settable: false,
@@ -5171,8 +8624,14 @@ func SimVarAutopilotMachHoldVar() SimVar {
 }
 
 // SimVarAutopilotYawDamper Simvar
-func SimVarAutopilotYawDamper() SimVar {
+// args contain optional index
+func SimVarAutopilotYawDamper(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT YAW DAMPER",
 		Units:    "Bool",
 		Settable: false,
@@ -5180,8 +8639,14 @@ func SimVarAutopilotYawDamper() SimVar {
 }
 
 // SimVarAutopilotRpmHoldVar Simvar
-func SimVarAutopilotRpmHoldVar() SimVar {
+// args contain optional index
+func SimVarAutopilotRpmHoldVar(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT RPM HOLD VAR",
 		Units:    "Number",
 		Settable: false,
@@ -5189,8 +8654,14 @@ func SimVarAutopilotRpmHoldVar() SimVar {
 }
 
 // SimVarAutopilotThrottleArm Simvar
-func SimVarAutopilotThrottleArm() SimVar {
+// args contain optional index
+func SimVarAutopilotThrottleArm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT THROTTLE ARM",
 		Units:    "Bool",
 		Settable: false,
@@ -5198,8 +8669,14 @@ func SimVarAutopilotThrottleArm() SimVar {
 }
 
 // SimVarAutopilotTakeoffPowerActive Simvar
-func SimVarAutopilotTakeoffPowerActive() SimVar {
+// args contain optional index
+func SimVarAutopilotTakeoffPowerActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT TAKEOFF POWER ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5207,8 +8684,14 @@ func SimVarAutopilotTakeoffPowerActive() SimVar {
 }
 
 // SimVarAutothrottleActive Simvar
-func SimVarAutothrottleActive() SimVar {
+// args contain optional index
+func SimVarAutothrottleActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOTHROTTLE ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5216,8 +8699,13 @@ func SimVarAutothrottleActive() SimVar {
 }
 
 // SimVarAutopilotNav1Lock Simvar
-func SimVarAutopilotNav1Lock() SimVar {
+func SimVarAutopilotNav1Lock(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT NAV1 LOCK",
 		Units:    "Bool",
 		Settable: false,
@@ -5225,8 +8713,14 @@ func SimVarAutopilotNav1Lock() SimVar {
 }
 
 // SimVarAutopilotVerticalHold Simvar
-func SimVarAutopilotVerticalHold() SimVar {
+// args contain optional index
+func SimVarAutopilotVerticalHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT VERTICAL HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5234,8 +8728,14 @@ func SimVarAutopilotVerticalHold() SimVar {
 }
 
 // SimVarAutopilotRpmHold Simvar
-func SimVarAutopilotRpmHold() SimVar {
+// args contain optional index
+func SimVarAutopilotRpmHold(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT RPM HOLD",
 		Units:    "Bool",
 		Settable: false,
@@ -5243,8 +8743,14 @@ func SimVarAutopilotRpmHold() SimVar {
 }
 
 // SimVarAutopilotMaxBank Simvar
-func SimVarAutopilotMaxBank() SimVar {
+// args contain optional index
+func SimVarAutopilotMaxBank(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTOPILOT MAX BANK",
 		Units:    "Radians",
 		Settable: false,
@@ -5252,8 +8758,14 @@ func SimVarAutopilotMaxBank() SimVar {
 }
 
 // SimVarWheelRpm Simvar
-func SimVarWheelRpm() SimVar {
+// args contain optional index
+func SimVarWheelRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WHEEL RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -5261,8 +8773,14 @@ func SimVarWheelRpm() SimVar {
 }
 
 // SimVarAuxWheelRpm Simvar
-func SimVarAuxWheelRpm() SimVar {
+// args contain optional index
+func SimVarAuxWheelRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUX WHEEL RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -5270,8 +8788,14 @@ func SimVarAuxWheelRpm() SimVar {
 }
 
 // SimVarWheelRotationAngle Simvar
-func SimVarWheelRotationAngle() SimVar {
+// args contain optional index
+func SimVarWheelRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WHEEL ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -5279,8 +8803,14 @@ func SimVarWheelRotationAngle() SimVar {
 }
 
 // SimVarCenterWheelRotationAngle Simvar
-func SimVarCenterWheelRotationAngle() SimVar {
+// args contain optional index
+func SimVarCenterWheelRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CENTER WHEEL ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -5288,8 +8818,14 @@ func SimVarCenterWheelRotationAngle() SimVar {
 }
 
 // SimVarLeftWheelRotationAngle Simvar
-func SimVarLeftWheelRotationAngle() SimVar {
+// args contain optional index
+func SimVarLeftWheelRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LEFT WHEEL ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -5297,8 +8833,14 @@ func SimVarLeftWheelRotationAngle() SimVar {
 }
 
 // SimVarRightWheelRotationAngle Simvar
-func SimVarRightWheelRotationAngle() SimVar {
+// args contain optional index
+func SimVarRightWheelRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RIGHT WHEEL ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -5306,8 +8848,14 @@ func SimVarRightWheelRotationAngle() SimVar {
 }
 
 // SimVarAuxWheelRotationAngle Simvar
-func SimVarAuxWheelRotationAngle() SimVar {
+// args contain optional index
+func SimVarAuxWheelRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUX WHEEL ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -5315,8 +8863,14 @@ func SimVarAuxWheelRotationAngle() SimVar {
 }
 
 // SimVarGearEmergencyHandlePosition Simvar
-func SimVarGearEmergencyHandlePosition() SimVar {
+// args contain optional index
+func SimVarGearEmergencyHandlePosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR EMERGENCY HANDLE POSITION",
 		Units:    "Bool",
 		Settable: false,
@@ -5324,8 +8878,14 @@ func SimVarGearEmergencyHandlePosition() SimVar {
 }
 
 // SimVarGearWarning Simvar
-func SimVarGearWarning() SimVar {
+// args contain optional index
+func SimVarGearWarning(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GEAR WARNING",
 		Units:    "Enum",
 		Settable: false,
@@ -5333,8 +8893,14 @@ func SimVarGearWarning() SimVar {
 }
 
 // SimVarAntiskidBrakesActive Simvar
-func SimVarAntiskidBrakesActive() SimVar {
+// args contain optional index
+func SimVarAntiskidBrakesActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ANTISKID BRAKES ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5342,8 +8908,14 @@ func SimVarAntiskidBrakesActive() SimVar {
 }
 
 // SimVarRetractFloatSwitch Simvar
-func SimVarRetractFloatSwitch() SimVar {
+// args contain optional index
+func SimVarRetractFloatSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RETRACT FLOAT SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -5351,8 +8923,14 @@ func SimVarRetractFloatSwitch() SimVar {
 }
 
 // SimVarRetractLeftFloatExtended Simvar
-func SimVarRetractLeftFloatExtended() SimVar {
+// args contain optional index
+func SimVarRetractLeftFloatExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RETRACT LEFT FLOAT EXTENDED",
 		Units:    "Percent",
 		Settable: false,
@@ -5360,8 +8938,14 @@ func SimVarRetractLeftFloatExtended() SimVar {
 }
 
 // SimVarRetractRightFloatExtended Simvar
-func SimVarRetractRightFloatExtended() SimVar {
+// args contain optional index
+func SimVarRetractRightFloatExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RETRACT RIGHT FLOAT EXTENDED",
 		Units:    "Percent",
 		Settable: false,
@@ -5369,8 +8953,14 @@ func SimVarRetractRightFloatExtended() SimVar {
 }
 
 // SimVarSteerInputControl Simvar
-func SimVarSteerInputControl() SimVar {
+// args contain optional index
+func SimVarSteerInputControl(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STEER INPUT CONTROL",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -5378,8 +8968,14 @@ func SimVarSteerInputControl() SimVar {
 }
 
 // SimVarAmbientDensity Simvar
-func SimVarAmbientDensity() SimVar {
+// args contain optional index
+func SimVarAmbientDensity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT DENSITY",
 		Units:    "Slugs per cubic feet",
 		Settable: false,
@@ -5387,8 +8983,14 @@ func SimVarAmbientDensity() SimVar {
 }
 
 // SimVarAmbientTemperature Simvar
-func SimVarAmbientTemperature() SimVar {
+// args contain optional index
+func SimVarAmbientTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT TEMPERATURE",
 		Units:    "Celsius",
 		Settable: false,
@@ -5396,8 +8998,14 @@ func SimVarAmbientTemperature() SimVar {
 }
 
 // SimVarAmbientPressure Simvar
-func SimVarAmbientPressure() SimVar {
+// args contain optional index
+func SimVarAmbientPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT PRESSURE",
 		Units:    "inHg",
 		Settable: false,
@@ -5405,8 +9013,14 @@ func SimVarAmbientPressure() SimVar {
 }
 
 // SimVarAmbientWindVelocity Simvar
-func SimVarAmbientWindVelocity() SimVar {
+// args contain optional index
+func SimVarAmbientWindVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT WIND VELOCITY",
 		Units:    "Knots",
 		Settable: false,
@@ -5414,8 +9028,14 @@ func SimVarAmbientWindVelocity() SimVar {
 }
 
 // SimVarAmbientWindDirection Simvar
-func SimVarAmbientWindDirection() SimVar {
+// args contain optional index
+func SimVarAmbientWindDirection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT WIND DIRECTION",
 		Units:    "Degrees",
 		Settable: false,
@@ -5423,8 +9043,14 @@ func SimVarAmbientWindDirection() SimVar {
 }
 
 // SimVarAmbientWindX Simvar
-func SimVarAmbientWindX() SimVar {
+// args contain optional index
+func SimVarAmbientWindX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT WIND X",
 		Units:    "Meters per second",
 		Settable: false,
@@ -5432,8 +9058,14 @@ func SimVarAmbientWindX() SimVar {
 }
 
 // SimVarAmbientWindY Simvar
-func SimVarAmbientWindY() SimVar {
+// args contain optional index
+func SimVarAmbientWindY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT WIND Y",
 		Units:    "Meters per second",
 		Settable: false,
@@ -5441,8 +9073,14 @@ func SimVarAmbientWindY() SimVar {
 }
 
 // SimVarAmbientWindZ Simvar
-func SimVarAmbientWindZ() SimVar {
+// args contain optional index
+func SimVarAmbientWindZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT WIND Z",
 		Units:    "Meters per second",
 		Settable: false,
@@ -5450,8 +9088,14 @@ func SimVarAmbientWindZ() SimVar {
 }
 
 // SimVarAmbientPrecipState Simvar
-func SimVarAmbientPrecipState() SimVar {
+// args contain optional index
+func SimVarAmbientPrecipState(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT PRECIP STATE",
 		Units:    "Mask",
 		Settable: false,
@@ -5459,8 +9103,14 @@ func SimVarAmbientPrecipState() SimVar {
 }
 
 // SimVarAircraftWindX Simvar
-func SimVarAircraftWindX() SimVar {
+// args contain optional index
+func SimVarAircraftWindX(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRCRAFT WIND X",
 		Units:    "Knots",
 		Settable: false,
@@ -5468,8 +9118,14 @@ func SimVarAircraftWindX() SimVar {
 }
 
 // SimVarAircraftWindY Simvar
-func SimVarAircraftWindY() SimVar {
+// args contain optional index
+func SimVarAircraftWindY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRCRAFT WIND Y",
 		Units:    "Knots",
 		Settable: false,
@@ -5477,8 +9133,14 @@ func SimVarAircraftWindY() SimVar {
 }
 
 // SimVarAircraftWindZ Simvar
-func SimVarAircraftWindZ() SimVar {
+// args contain optional index
+func SimVarAircraftWindZ(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRCRAFT WIND Z",
 		Units:    "Knots",
 		Settable: false,
@@ -5486,8 +9148,14 @@ func SimVarAircraftWindZ() SimVar {
 }
 
 // SimVarBarometerPressure Simvar
-func SimVarBarometerPressure() SimVar {
+// args contain optional index
+func SimVarBarometerPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BAROMETER PRESSURE",
 		Units:    "Millibars",
 		Settable: false,
@@ -5495,8 +9163,14 @@ func SimVarBarometerPressure() SimVar {
 }
 
 // SimVarSeaLevelPressure Simvar
-func SimVarSeaLevelPressure() SimVar {
+// args contain optional index
+func SimVarSeaLevelPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SEA LEVEL PRESSURE",
 		Units:    "Millibars",
 		Settable: false,
@@ -5504,8 +9178,14 @@ func SimVarSeaLevelPressure() SimVar {
 }
 
 // SimVarTotalAirTemperature Simvar
-func SimVarTotalAirTemperature() SimVar {
+// args contain optional index
+func SimVarTotalAirTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL AIR TEMPERATURE",
 		Units:    "Celsius",
 		Settable: false,
@@ -5513,8 +9193,14 @@ func SimVarTotalAirTemperature() SimVar {
 }
 
 // SimVarWindshieldRainEffectAvailable Simvar
-func SimVarWindshieldRainEffectAvailable() SimVar {
+// args contain optional index
+func SimVarWindshieldRainEffectAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WINDSHIELD RAIN EFFECT AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5522,8 +9208,14 @@ func SimVarWindshieldRainEffectAvailable() SimVar {
 }
 
 // SimVarAmbientInCloud Simvar
-func SimVarAmbientInCloud() SimVar {
+// args contain optional index
+func SimVarAmbientInCloud(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT IN CLOUD",
 		Units:    "Bool",
 		Settable: false,
@@ -5531,8 +9223,14 @@ func SimVarAmbientInCloud() SimVar {
 }
 
 // SimVarAmbientVisibility Simvar
-func SimVarAmbientVisibility() SimVar {
+// args contain optional index
+func SimVarAmbientVisibility(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AMBIENT VISIBILITY",
 		Units:    "Meters",
 		Settable: false,
@@ -5540,8 +9238,14 @@ func SimVarAmbientVisibility() SimVar {
 }
 
 // SimVarStandardAtmTemperature Simvar
-func SimVarStandardAtmTemperature() SimVar {
+// args contain optional index
+func SimVarStandardAtmTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STANDARD ATM TEMPERATURE",
 		Units:    "Rankine",
 		Settable: false,
@@ -5549,8 +9253,14 @@ func SimVarStandardAtmTemperature() SimVar {
 }
 
 // SimVarRotorBrakeHandlePos Simvar
-func SimVarRotorBrakeHandlePos() SimVar {
+// args contain optional index
+func SimVarRotorBrakeHandlePos(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR BRAKE HANDLE POS",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -5558,8 +9268,14 @@ func SimVarRotorBrakeHandlePos() SimVar {
 }
 
 // SimVarRotorBrakeActive Simvar
-func SimVarRotorBrakeActive() SimVar {
+// args contain optional index
+func SimVarRotorBrakeActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR BRAKE ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5567,8 +9283,14 @@ func SimVarRotorBrakeActive() SimVar {
 }
 
 // SimVarRotorClutchSwitchPos Simvar
-func SimVarRotorClutchSwitchPos() SimVar {
+// args contain optional index
+func SimVarRotorClutchSwitchPos(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR CLUTCH SWITCH POS",
 		Units:    "Bool",
 		Settable: false,
@@ -5576,8 +9298,14 @@ func SimVarRotorClutchSwitchPos() SimVar {
 }
 
 // SimVarRotorClutchActive Simvar
-func SimVarRotorClutchActive() SimVar {
+// args contain optional index
+func SimVarRotorClutchActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR CLUTCH ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5585,8 +9313,14 @@ func SimVarRotorClutchActive() SimVar {
 }
 
 // SimVarRotorTemperature Simvar
-func SimVarRotorTemperature() SimVar {
+// args contain optional index
+func SimVarRotorTemperature(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR TEMPERATURE",
 		Units:    "Rankine",
 		Settable: false,
@@ -5594,8 +9328,14 @@ func SimVarRotorTemperature() SimVar {
 }
 
 // SimVarRotorChipDetected Simvar
-func SimVarRotorChipDetected() SimVar {
+// args contain optional index
+func SimVarRotorChipDetected(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR CHIP DETECTED",
 		Units:    "Bool",
 		Settable: false,
@@ -5603,8 +9343,14 @@ func SimVarRotorChipDetected() SimVar {
 }
 
 // SimVarRotorGovSwitchPos Simvar
-func SimVarRotorGovSwitchPos() SimVar {
+// args contain optional index
+func SimVarRotorGovSwitchPos(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR GOV SWITCH POS",
 		Units:    "Bool",
 		Settable: false,
@@ -5612,8 +9358,14 @@ func SimVarRotorGovSwitchPos() SimVar {
 }
 
 // SimVarRotorGovActive Simvar
-func SimVarRotorGovActive() SimVar {
+// args contain optional index
+func SimVarRotorGovActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR GOV ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -5621,8 +9373,14 @@ func SimVarRotorGovActive() SimVar {
 }
 
 // SimVarRotorLateralTrimPct Simvar
-func SimVarRotorLateralTrimPct() SimVar {
+// args contain optional index
+func SimVarRotorLateralTrimPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR LATERAL TRIM PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -5630,8 +9388,14 @@ func SimVarRotorLateralTrimPct() SimVar {
 }
 
 // SimVarRotorRpmPct Simvar
-func SimVarRotorRpmPct() SimVar {
+// args contain optional index
+func SimVarRotorRpmPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR RPM PCT",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -5639,8 +9403,14 @@ func SimVarRotorRpmPct() SimVar {
 }
 
 // SimVarSmokeEnable Simvar
-func SimVarSmokeEnable() SimVar {
+// args contain optional index
+func SimVarSmokeEnable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SMOKE ENABLE",
 		Units:    "Bool",
 		Settable: true,
@@ -5648,8 +9418,14 @@ func SimVarSmokeEnable() SimVar {
 }
 
 // SimVarSmokesystemAvailable Simvar
-func SimVarSmokesystemAvailable() SimVar {
+// args contain optional index
+func SimVarSmokesystemAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SMOKESYSTEM AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5657,8 +9433,14 @@ func SimVarSmokesystemAvailable() SimVar {
 }
 
 // SimVarPitotHeat Simvar
-func SimVarPitotHeat() SimVar {
+// args contain optional index
+func SimVarPitotHeat(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PITOT HEAT",
 		Units:    "Bool",
 		Settable: false,
@@ -5666,8 +9448,14 @@ func SimVarPitotHeat() SimVar {
 }
 
 // SimVarFoldingWingLeftPercent Simvar
-func SimVarFoldingWingLeftPercent() SimVar {
+// args contain optional index
+func SimVarFoldingWingLeftPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FOLDING WING LEFT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -5675,8 +9463,14 @@ func SimVarFoldingWingLeftPercent() SimVar {
 }
 
 // SimVarFoldingWingRightPercent Simvar
-func SimVarFoldingWingRightPercent() SimVar {
+// args contain optional index
+func SimVarFoldingWingRightPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FOLDING WING RIGHT PERCENT",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -5684,8 +9478,14 @@ func SimVarFoldingWingRightPercent() SimVar {
 }
 
 // SimVarCanopyOpen Simvar
-func SimVarCanopyOpen() SimVar {
+// args contain optional index
+func SimVarCanopyOpen(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CANOPY OPEN",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -5693,8 +9493,14 @@ func SimVarCanopyOpen() SimVar {
 }
 
 // SimVarTailhookPosition Simvar
-func SimVarTailhookPosition() SimVar {
+// args contain optional index
+func SimVarTailhookPosition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TAILHOOK POSITION",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -5702,8 +9508,14 @@ func SimVarTailhookPosition() SimVar {
 }
 
 // SimVarExitOpen Simvar
-func SimVarExitOpen() SimVar {
+// args contain optional index
+func SimVarExitOpen(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EXIT OPEN:index",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -5711,8 +9523,14 @@ func SimVarExitOpen() SimVar {
 }
 
 // SimVarStallHornAvailable Simvar
-func SimVarStallHornAvailable() SimVar {
+// args contain optional index
+func SimVarStallHornAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STALL HORN AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5720,8 +9538,14 @@ func SimVarStallHornAvailable() SimVar {
 }
 
 // SimVarEngineMixureAvailable Simvar
-func SimVarEngineMixureAvailable() SimVar {
+// args contain optional index
+func SimVarEngineMixureAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ENGINE MIXURE AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5729,8 +9553,14 @@ func SimVarEngineMixureAvailable() SimVar {
 }
 
 // SimVarCarbHeatAvailable Simvar
-func SimVarCarbHeatAvailable() SimVar {
+// args contain optional index
+func SimVarCarbHeatAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CARB HEAT AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5738,8 +9568,14 @@ func SimVarCarbHeatAvailable() SimVar {
 }
 
 // SimVarSpoilerAvailable Simvar
-func SimVarSpoilerAvailable() SimVar {
+// args contain optional index
+func SimVarSpoilerAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SPOILER AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5747,8 +9583,14 @@ func SimVarSpoilerAvailable() SimVar {
 }
 
 // SimVarIsTailDragger Simvar
-func SimVarIsTailDragger() SimVar {
+// args contain optional index
+func SimVarIsTailDragger(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS TAIL DRAGGER",
 		Units:    "Bool",
 		Settable: false,
@@ -5756,8 +9598,14 @@ func SimVarIsTailDragger() SimVar {
 }
 
 // SimVarStrobesAvailable Simvar
-func SimVarStrobesAvailable() SimVar {
+// args contain optional index
+func SimVarStrobesAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STROBES AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5765,8 +9613,14 @@ func SimVarStrobesAvailable() SimVar {
 }
 
 // SimVarToeBrakesAvailable Simvar
-func SimVarToeBrakesAvailable() SimVar {
+// args contain optional index
+func SimVarToeBrakesAvailable(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOE BRAKES AVAILABLE",
 		Units:    "Bool",
 		Settable: false,
@@ -5774,8 +9628,14 @@ func SimVarToeBrakesAvailable() SimVar {
 }
 
 // SimVarPushbackState Simvar
-func SimVarPushbackState() SimVar {
+// args contain optional index
+func SimVarPushbackState(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK STATE",
 		Units:    "Enum",
 		Settable: true,
@@ -5783,8 +9643,14 @@ func SimVarPushbackState() SimVar {
 }
 
 // SimVarElectricalMasterBattery Simvar
-func SimVarElectricalMasterBattery() SimVar {
+// args contain optional index
+func SimVarElectricalMasterBattery(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL MASTER BATTERY",
 		Units:    "Bool",
 		Settable: true,
@@ -5792,8 +9658,14 @@ func SimVarElectricalMasterBattery() SimVar {
 }
 
 // SimVarElectricalTotalLoadAmps Simvar
-func SimVarElectricalTotalLoadAmps() SimVar {
+// args contain optional index
+func SimVarElectricalTotalLoadAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL TOTAL LOAD AMPS",
 		Units:    "Amperes",
 		Settable: true,
@@ -5801,8 +9673,14 @@ func SimVarElectricalTotalLoadAmps() SimVar {
 }
 
 // SimVarElectricalBatteryLoad Simvar
-func SimVarElectricalBatteryLoad() SimVar {
+// args contain optional index
+func SimVarElectricalBatteryLoad(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL BATTERY LOAD",
 		Units:    "Amperes",
 		Settable: true,
@@ -5810,8 +9688,14 @@ func SimVarElectricalBatteryLoad() SimVar {
 }
 
 // SimVarElectricalBatteryVoltage Simvar
-func SimVarElectricalBatteryVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalBatteryVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL BATTERY VOLTAGE",
 		Units:    "Volts",
 		Settable: true,
@@ -5819,8 +9703,14 @@ func SimVarElectricalBatteryVoltage() SimVar {
 }
 
 // SimVarElectricalMainBusVoltage Simvar
-func SimVarElectricalMainBusVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalMainBusVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL MAIN BUS VOLTAGE",
 		Units:    "Volts",
 		Settable: true,
@@ -5828,8 +9718,14 @@ func SimVarElectricalMainBusVoltage() SimVar {
 }
 
 // SimVarElectricalMainBusAmps Simvar
-func SimVarElectricalMainBusAmps() SimVar {
+// args contain optional index
+func SimVarElectricalMainBusAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL MAIN BUS AMPS",
 		Units:    "Amperes",
 		Settable: true,
@@ -5837,8 +9733,14 @@ func SimVarElectricalMainBusAmps() SimVar {
 }
 
 // SimVarElectricalAvionicsBusVoltage Simvar
-func SimVarElectricalAvionicsBusVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalAvionicsBusVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL AVIONICS BUS VOLTAGE",
 		Units:    "Volts",
 		Settable: true,
@@ -5846,8 +9748,14 @@ func SimVarElectricalAvionicsBusVoltage() SimVar {
 }
 
 // SimVarElectricalAvionicsBusAmps Simvar
-func SimVarElectricalAvionicsBusAmps() SimVar {
+// args contain optional index
+func SimVarElectricalAvionicsBusAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL AVIONICS BUS AMPS",
 		Units:    "Amperes",
 		Settable: true,
@@ -5855,8 +9763,14 @@ func SimVarElectricalAvionicsBusAmps() SimVar {
 }
 
 // SimVarElectricalHotBatteryBusVoltage Simvar
-func SimVarElectricalHotBatteryBusVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalHotBatteryBusVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL HOT BATTERY BUS VOLTAGE",
 		Units:    "Volts",
 		Settable: true,
@@ -5864,8 +9778,14 @@ func SimVarElectricalHotBatteryBusVoltage() SimVar {
 }
 
 // SimVarElectricalHotBatteryBusAmps Simvar
-func SimVarElectricalHotBatteryBusAmps() SimVar {
+// args contain optional index
+func SimVarElectricalHotBatteryBusAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL HOT BATTERY BUS AMPS",
 		Units:    "Amperes",
 		Settable: true,
@@ -5873,8 +9793,14 @@ func SimVarElectricalHotBatteryBusAmps() SimVar {
 }
 
 // SimVarElectricalBatteryBusVoltage Simvar
-func SimVarElectricalBatteryBusVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalBatteryBusVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL BATTERY BUS VOLTAGE",
 		Units:    "Volts",
 		Settable: true,
@@ -5882,8 +9808,14 @@ func SimVarElectricalBatteryBusVoltage() SimVar {
 }
 
 // SimVarElectricalBatteryBusAmps Simvar
-func SimVarElectricalBatteryBusAmps() SimVar {
+// args contain optional index
+func SimVarElectricalBatteryBusAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL BATTERY BUS AMPS",
 		Units:    "Amperes",
 		Settable: true,
@@ -5891,8 +9823,14 @@ func SimVarElectricalBatteryBusAmps() SimVar {
 }
 
 // SimVarElectricalGenaltBusVoltage Simvar
-func SimVarElectricalGenaltBusVoltage() SimVar {
+// args contain optional index
+func SimVarElectricalGenaltBusVoltage(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL GENALT BUS VOLTAGE:index",
 		Units:    "Volts",
 		Settable: true,
@@ -5900,8 +9838,14 @@ func SimVarElectricalGenaltBusVoltage() SimVar {
 }
 
 // SimVarElectricalGenaltBusAmps Simvar
-func SimVarElectricalGenaltBusAmps() SimVar {
+// args contain optional index
+func SimVarElectricalGenaltBusAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL GENALT BUS AMPS:index",
 		Units:    "Amperes",
 		Settable: true,
@@ -5909,8 +9853,14 @@ func SimVarElectricalGenaltBusAmps() SimVar {
 }
 
 // SimVarCircuitGeneralPanelOn Simvar
-func SimVarCircuitGeneralPanelOn() SimVar {
+// args contain optional index
+func SimVarCircuitGeneralPanelOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT GENERAL PANEL ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5918,8 +9868,14 @@ func SimVarCircuitGeneralPanelOn() SimVar {
 }
 
 // SimVarCircuitFlapMotorOn Simvar
-func SimVarCircuitFlapMotorOn() SimVar {
+// args contain optional index
+func SimVarCircuitFlapMotorOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT FLAP MOTOR ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5927,8 +9883,14 @@ func SimVarCircuitFlapMotorOn() SimVar {
 }
 
 // SimVarCircuitGearMotorOn Simvar
-func SimVarCircuitGearMotorOn() SimVar {
+// args contain optional index
+func SimVarCircuitGearMotorOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT GEAR MOTOR ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5936,8 +9898,14 @@ func SimVarCircuitGearMotorOn() SimVar {
 }
 
 // SimVarCircuitAutopilotOn Simvar
-func SimVarCircuitAutopilotOn() SimVar {
+// args contain optional index
+func SimVarCircuitAutopilotOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT AUTOPILOT ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5945,8 +9913,14 @@ func SimVarCircuitAutopilotOn() SimVar {
 }
 
 // SimVarCircuitAvionicsOn Simvar
-func SimVarCircuitAvionicsOn() SimVar {
+// args contain optional index
+func SimVarCircuitAvionicsOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT AVIONICS ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5954,8 +9928,14 @@ func SimVarCircuitAvionicsOn() SimVar {
 }
 
 // SimVarCircuitPitotHeatOn Simvar
-func SimVarCircuitPitotHeatOn() SimVar {
+// args contain optional index
+func SimVarCircuitPitotHeatOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT PITOT HEAT ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5963,8 +9943,14 @@ func SimVarCircuitPitotHeatOn() SimVar {
 }
 
 // SimVarCircuitPropSyncOn Simvar
-func SimVarCircuitPropSyncOn() SimVar {
+// args contain optional index
+func SimVarCircuitPropSyncOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT PROP SYNC ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5972,8 +9958,14 @@ func SimVarCircuitPropSyncOn() SimVar {
 }
 
 // SimVarCircuitAutoFeatherOn Simvar
-func SimVarCircuitAutoFeatherOn() SimVar {
+// args contain optional index
+func SimVarCircuitAutoFeatherOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT AUTO FEATHER ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5981,8 +9973,14 @@ func SimVarCircuitAutoFeatherOn() SimVar {
 }
 
 // SimVarCircuitAutoBrakesOn Simvar
-func SimVarCircuitAutoBrakesOn() SimVar {
+// args contain optional index
+func SimVarCircuitAutoBrakesOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT AUTO BRAKES ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5990,8 +9988,14 @@ func SimVarCircuitAutoBrakesOn() SimVar {
 }
 
 // SimVarCircuitStandyVacuumOn Simvar
-func SimVarCircuitStandyVacuumOn() SimVar {
+// args contain optional index
+func SimVarCircuitStandyVacuumOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT STANDY VACUUM ON",
 		Units:    "Bool",
 		Settable: false,
@@ -5999,8 +10003,14 @@ func SimVarCircuitStandyVacuumOn() SimVar {
 }
 
 // SimVarCircuitMarkerBeaconOn Simvar
-func SimVarCircuitMarkerBeaconOn() SimVar {
+// args contain optional index
+func SimVarCircuitMarkerBeaconOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT MARKER BEACON ON",
 		Units:    "Bool",
 		Settable: false,
@@ -6008,8 +10018,14 @@ func SimVarCircuitMarkerBeaconOn() SimVar {
 }
 
 // SimVarCircuitGearWarningOn Simvar
-func SimVarCircuitGearWarningOn() SimVar {
+// args contain optional index
+func SimVarCircuitGearWarningOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT GEAR WARNING ON",
 		Units:    "Bool",
 		Settable: false,
@@ -6017,8 +10033,14 @@ func SimVarCircuitGearWarningOn() SimVar {
 }
 
 // SimVarCircuitHydraulicPumpOn Simvar
-func SimVarCircuitHydraulicPumpOn() SimVar {
+// args contain optional index
+func SimVarCircuitHydraulicPumpOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CIRCUIT HYDRAULIC PUMP ON",
 		Units:    "Bool",
 		Settable: false,
@@ -6026,8 +10048,14 @@ func SimVarCircuitHydraulicPumpOn() SimVar {
 }
 
 // SimVarHydraulicPressure Simvar
-func SimVarHydraulicPressure() SimVar {
+// args contain optional index
+func SimVarHydraulicPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HYDRAULIC PRESSURE:index",
 		Units:    "Pound force per square foot",
 		Settable: false,
@@ -6035,8 +10063,14 @@ func SimVarHydraulicPressure() SimVar {
 }
 
 // SimVarHydraulicReservoirPercent Simvar
-func SimVarHydraulicReservoirPercent() SimVar {
+// args contain optional index
+func SimVarHydraulicReservoirPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HYDRAULIC RESERVOIR PERCENT:index",
 		Units:    "Percent Over 100",
 		Settable: true,
@@ -6044,8 +10078,14 @@ func SimVarHydraulicReservoirPercent() SimVar {
 }
 
 // SimVarHydraulicSystemIntegrity Simvar
-func SimVarHydraulicSystemIntegrity() SimVar {
+// args contain optional index
+func SimVarHydraulicSystemIntegrity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HYDRAULIC SYSTEM INTEGRITY",
 		Units:    "Percent Over 100",
 		Settable: false,
@@ -6053,8 +10093,14 @@ func SimVarHydraulicSystemIntegrity() SimVar {
 }
 
 // SimVarStructuralDeiceSwitch Simvar
-func SimVarStructuralDeiceSwitch() SimVar {
+// args contain optional index
+func SimVarStructuralDeiceSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCTURAL DEICE SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6062,8 +10108,14 @@ func SimVarStructuralDeiceSwitch() SimVar {
 }
 
 // SimVarTotalWeight Simvar
-func SimVarTotalWeight() SimVar {
+// args contain optional index
+func SimVarTotalWeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WEIGHT",
 		Units:    "Pounds",
 		Settable: false,
@@ -6071,8 +10123,14 @@ func SimVarTotalWeight() SimVar {
 }
 
 // SimVarMaxGrossWeight Simvar
-func SimVarMaxGrossWeight() SimVar {
+// args contain optional index
+func SimVarMaxGrossWeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MAX GROSS WEIGHT",
 		Units:    "Pounds",
 		Settable: false,
@@ -6080,8 +10138,14 @@ func SimVarMaxGrossWeight() SimVar {
 }
 
 // SimVarEmptyWeight Simvar
-func SimVarEmptyWeight() SimVar {
+// args contain optional index
+func SimVarEmptyWeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EMPTY WEIGHT",
 		Units:    "Pounds",
 		Settable: false,
@@ -6089,8 +10153,14 @@ func SimVarEmptyWeight() SimVar {
 }
 
 // SimVarIsUserSim Simvar
-func SimVarIsUserSim() SimVar {
+// args contain optional index
+func SimVarIsUserSim(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS USER SIM",
 		Units:    "Bool",
 		Settable: false,
@@ -6098,8 +10168,14 @@ func SimVarIsUserSim() SimVar {
 }
 
 // SimVarSimDisabled Simvar
-func SimVarSimDisabled() SimVar {
+// args contain optional index
+func SimVarSimDisabled(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SIM DISABLED",
 		Units:    "Bool",
 		Settable: true,
@@ -6107,8 +10183,14 @@ func SimVarSimDisabled() SimVar {
 }
 
 // SimVarGForce Simvar
-func SimVarGForce() SimVar {
+// args contain optional index
+func SimVarGForce(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "G FORCE",
 		Units:    "GForce",
 		Settable: true,
@@ -6116,8 +10198,14 @@ func SimVarGForce() SimVar {
 }
 
 // SimVarAtcHeavy Simvar
-func SimVarAtcHeavy() SimVar {
+// args contain optional index
+func SimVarAtcHeavy(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC HEAVY",
 		Units:    "Bool",
 		Settable: true,
@@ -6125,8 +10213,14 @@ func SimVarAtcHeavy() SimVar {
 }
 
 // SimVarAutoCoordination Simvar
-func SimVarAutoCoordination() SimVar {
+// args contain optional index
+func SimVarAutoCoordination(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AUTO COORDINATION",
 		Units:    "Bool",
 		Settable: true,
@@ -6134,8 +10228,14 @@ func SimVarAutoCoordination() SimVar {
 }
 
 // SimVarRealism Simvar
-func SimVarRealism() SimVar {
+// args contain optional index
+func SimVarRealism(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "REALISM",
 		Units:    "Number",
 		Settable: true,
@@ -6143,8 +10243,14 @@ func SimVarRealism() SimVar {
 }
 
 // SimVarTrueAirspeedSelected Simvar
-func SimVarTrueAirspeedSelected() SimVar {
+// args contain optional index
+func SimVarTrueAirspeedSelected(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TRUE AIRSPEED SELECTED",
 		Units:    "Bool",
 		Settable: true,
@@ -6152,8 +10258,14 @@ func SimVarTrueAirspeedSelected() SimVar {
 }
 
 // SimVarDesignSpeedVc Simvar
-func SimVarDesignSpeedVc() SimVar {
+// args contain optional index
+func SimVarDesignSpeedVc(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DESIGN SPEED VC",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6161,8 +10273,14 @@ func SimVarDesignSpeedVc() SimVar {
 }
 
 // SimVarMinDragVelocity Simvar
-func SimVarMinDragVelocity() SimVar {
+// args contain optional index
+func SimVarMinDragVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MIN DRAG VELOCITY",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6170,8 +10288,14 @@ func SimVarMinDragVelocity() SimVar {
 }
 
 // SimVarEstimatedCruiseSpeed Simvar
-func SimVarEstimatedCruiseSpeed() SimVar {
+// args contain optional index
+func SimVarEstimatedCruiseSpeed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ESTIMATED CRUISE SPEED",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6179,8 +10303,14 @@ func SimVarEstimatedCruiseSpeed() SimVar {
 }
 
 // SimVarCgPercent Simvar
-func SimVarCgPercent() SimVar {
+// args contain optional index
+func SimVarCgPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG PERCENT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6188,8 +10318,14 @@ func SimVarCgPercent() SimVar {
 }
 
 // SimVarCgPercentLateral Simvar
-func SimVarCgPercentLateral() SimVar {
+// args contain optional index
+func SimVarCgPercentLateral(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG PERCENT LATERAL",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6197,8 +10333,14 @@ func SimVarCgPercentLateral() SimVar {
 }
 
 // SimVarIsSlewActive Simvar
-func SimVarIsSlewActive() SimVar {
+// args contain optional index
+func SimVarIsSlewActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS SLEW ACTIVE",
 		Units:    "Bool",
 		Settable: true,
@@ -6206,8 +10348,14 @@ func SimVarIsSlewActive() SimVar {
 }
 
 // SimVarIsSlewAllowed Simvar
-func SimVarIsSlewAllowed() SimVar {
+// args contain optional index
+func SimVarIsSlewAllowed(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS SLEW ALLOWED",
 		Units:    "Bool",
 		Settable: true,
@@ -6215,8 +10363,14 @@ func SimVarIsSlewAllowed() SimVar {
 }
 
 // SimVarAtcSuggestedMinRwyTakeoff Simvar
-func SimVarAtcSuggestedMinRwyTakeoff() SimVar {
+// args contain optional index
+func SimVarAtcSuggestedMinRwyTakeoff(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC SUGGESTED MIN RWY TAKEOFF",
 		Units:    "Feet",
 		Settable: false,
@@ -6224,8 +10378,14 @@ func SimVarAtcSuggestedMinRwyTakeoff() SimVar {
 }
 
 // SimVarAtcSuggestedMinRwyLanding Simvar
-func SimVarAtcSuggestedMinRwyLanding() SimVar {
+// args contain optional index
+func SimVarAtcSuggestedMinRwyLanding(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC SUGGESTED MIN RWY LANDING",
 		Units:    "Feet",
 		Settable: false,
@@ -6233,8 +10393,14 @@ func SimVarAtcSuggestedMinRwyLanding() SimVar {
 }
 
 // SimVarPayloadStationWeight Simvar
-func SimVarPayloadStationWeight() SimVar {
+// args contain optional index
+func SimVarPayloadStationWeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PAYLOAD STATION WEIGHT:index",
 		Units:    "Pounds",
 		Settable: true,
@@ -6242,8 +10408,14 @@ func SimVarPayloadStationWeight() SimVar {
 }
 
 // SimVarPayloadStationCount Simvar
-func SimVarPayloadStationCount() SimVar {
+// args contain optional index
+func SimVarPayloadStationCount(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PAYLOAD STATION COUNT",
 		Units:    "Number",
 		Settable: false,
@@ -6251,8 +10423,14 @@ func SimVarPayloadStationCount() SimVar {
 }
 
 // SimVarUserInputEnabled Simvar
-func SimVarUserInputEnabled() SimVar {
+// args contain optional index
+func SimVarUserInputEnabled(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "USER INPUT ENABLED",
 		Units:    "Bool",
 		Settable: true,
@@ -6260,8 +10438,14 @@ func SimVarUserInputEnabled() SimVar {
 }
 
 // SimVarTypicalDescentRate Simvar
-func SimVarTypicalDescentRate() SimVar {
+// args contain optional index
+func SimVarTypicalDescentRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TYPICAL DESCENT RATE",
 		Units:    "Feet per minute",
 		Settable: false,
@@ -6269,8 +10453,14 @@ func SimVarTypicalDescentRate() SimVar {
 }
 
 // SimVarVisualModelRadius Simvar
-func SimVarVisualModelRadius() SimVar {
+// args contain optional index
+func SimVarVisualModelRadius(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VISUAL MODEL RADIUS",
 		Units:    "Meters",
 		Settable: false,
@@ -6278,8 +10468,14 @@ func SimVarVisualModelRadius() SimVar {
 }
 
 // SimVarCategory Simvar
-func SimVarCategory() SimVar {
+// args contain optional index
+func SimVarCategory(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CATEGORY",
 		Units:    "String",
 		Settable: false,
@@ -6287,8 +10483,14 @@ func SimVarCategory() SimVar {
 }
 
 // SimVarSigmaSqrt Simvar
-func SimVarSigmaSqrt() SimVar {
+// args contain optional index
+func SimVarSigmaSqrt(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SIGMA SQRT",
 		Units:    "Number",
 		Settable: false,
@@ -6296,8 +10498,14 @@ func SimVarSigmaSqrt() SimVar {
 }
 
 // SimVarDynamicPressure Simvar
-func SimVarDynamicPressure() SimVar {
+// args contain optional index
+func SimVarDynamicPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DYNAMIC PRESSURE",
 		Units:    "Pounds per square foot",
 		Settable: false,
@@ -6305,8 +10513,14 @@ func SimVarDynamicPressure() SimVar {
 }
 
 // SimVarTotalVelocity Simvar
-func SimVarTotalVelocity() SimVar {
+// args contain optional index
+func SimVarTotalVelocity(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL VELOCITY",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6314,8 +10528,14 @@ func SimVarTotalVelocity() SimVar {
 }
 
 // SimVarAirspeedSelectIndicatedOrTrue Simvar
-func SimVarAirspeedSelectIndicatedOrTrue() SimVar {
+// args contain optional index
+func SimVarAirspeedSelectIndicatedOrTrue(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "AIRSPEED SELECT INDICATED OR TRUE",
 		Units:    "Knots",
 		Settable: false,
@@ -6323,8 +10543,14 @@ func SimVarAirspeedSelectIndicatedOrTrue() SimVar {
 }
 
 // SimVarVariometerRate Simvar
-func SimVarVariometerRate() SimVar {
+// args contain optional index
+func SimVarVariometerRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VARIOMETER RATE",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6332,8 +10558,14 @@ func SimVarVariometerRate() SimVar {
 }
 
 // SimVarVariometerSwitch Simvar
-func SimVarVariometerSwitch() SimVar {
+// args contain optional index
+func SimVarVariometerSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "VARIOMETER SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6341,8 +10573,13 @@ func SimVarVariometerSwitch() SimVar {
 }
 
 // SimVarDesignSpeedVs0 Simvar
-func SimVarDesignSpeedVs0() SimVar {
+func SimVarDesignSpeedVs0(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DESIGN SPEED VS0",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6350,8 +10587,13 @@ func SimVarDesignSpeedVs0() SimVar {
 }
 
 // SimVarDesignSpeedVs1 Simvar
-func SimVarDesignSpeedVs1() SimVar {
+func SimVarDesignSpeedVs1(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DESIGN SPEED VS1",
 		Units:    "Feet per second",
 		Settable: false,
@@ -6359,8 +10601,14 @@ func SimVarDesignSpeedVs1() SimVar {
 }
 
 // SimVarPressureAltitude Simvar
-func SimVarPressureAltitude() SimVar {
+// args contain optional index
+func SimVarPressureAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURE ALTITUDE",
 		Units:    "Meters",
 		Settable: false,
@@ -6368,8 +10616,14 @@ func SimVarPressureAltitude() SimVar {
 }
 
 // SimVarMagneticCompass Simvar
-func SimVarMagneticCompass() SimVar {
+// args contain optional index
+func SimVarMagneticCompass(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MAGNETIC COMPASS",
 		Units:    "Degrees",
 		Settable: false,
@@ -6377,8 +10631,14 @@ func SimVarMagneticCompass() SimVar {
 }
 
 // SimVarTurnIndicatorRate Simvar
-func SimVarTurnIndicatorRate() SimVar {
+// args contain optional index
+func SimVarTurnIndicatorRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURN INDICATOR RATE",
 		Units:    "Radians per second",
 		Settable: false,
@@ -6386,8 +10646,14 @@ func SimVarTurnIndicatorRate() SimVar {
 }
 
 // SimVarTurnIndicatorSwitch Simvar
-func SimVarTurnIndicatorSwitch() SimVar {
+// args contain optional index
+func SimVarTurnIndicatorSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TURN INDICATOR SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6395,8 +10661,14 @@ func SimVarTurnIndicatorSwitch() SimVar {
 }
 
 // SimVarYokeYIndicator Simvar
-func SimVarYokeYIndicator() SimVar {
+// args contain optional index
+func SimVarYokeYIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YOKE Y INDICATOR",
 		Units:    "Position",
 		Settable: false,
@@ -6404,8 +10676,14 @@ func SimVarYokeYIndicator() SimVar {
 }
 
 // SimVarYokeXIndicator Simvar
-func SimVarYokeXIndicator() SimVar {
+// args contain optional index
+func SimVarYokeXIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YOKE X INDICATOR",
 		Units:    "Position",
 		Settable: false,
@@ -6413,8 +10691,14 @@ func SimVarYokeXIndicator() SimVar {
 }
 
 // SimVarRudderPedalIndicator Simvar
-func SimVarRudderPedalIndicator() SimVar {
+// args contain optional index
+func SimVarRudderPedalIndicator(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RUDDER PEDAL INDICATOR",
 		Units:    "Position",
 		Settable: false,
@@ -6422,8 +10706,14 @@ func SimVarRudderPedalIndicator() SimVar {
 }
 
 // SimVarBrakeDependentHydraulicPressure Simvar
-func SimVarBrakeDependentHydraulicPressure() SimVar {
+// args contain optional index
+func SimVarBrakeDependentHydraulicPressure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BRAKE DEPENDENT HYDRAULIC PRESSURE",
 		Units:    "foot pounds",
 		Settable: false,
@@ -6431,8 +10721,14 @@ func SimVarBrakeDependentHydraulicPressure() SimVar {
 }
 
 // SimVarPanelAntiIceSwitch Simvar
-func SimVarPanelAntiIceSwitch() SimVar {
+// args contain optional index
+func SimVarPanelAntiIceSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PANEL ANTI ICE SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6440,8 +10736,14 @@ func SimVarPanelAntiIceSwitch() SimVar {
 }
 
 // SimVarWingArea Simvar
-func SimVarWingArea() SimVar {
+// args contain optional index
+func SimVarWingArea(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WING AREA",
 		Units:    "Square feet",
 		Settable: false,
@@ -6449,8 +10751,14 @@ func SimVarWingArea() SimVar {
 }
 
 // SimVarWingSpan Simvar
-func SimVarWingSpan() SimVar {
+// args contain optional index
+func SimVarWingSpan(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WING SPAN",
 		Units:    "Feet",
 		Settable: false,
@@ -6458,8 +10766,14 @@ func SimVarWingSpan() SimVar {
 }
 
 // SimVarBetaDot Simvar
-func SimVarBetaDot() SimVar {
+// args contain optional index
+func SimVarBetaDot(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BETA DOT",
 		Units:    "Radians per second",
 		Settable: false,
@@ -6467,8 +10781,14 @@ func SimVarBetaDot() SimVar {
 }
 
 // SimVarLinearClAlpha Simvar
-func SimVarLinearClAlpha() SimVar {
+// args contain optional index
+func SimVarLinearClAlpha(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LINEAR CL ALPHA",
 		Units:    "Per radian",
 		Settable: false,
@@ -6476,8 +10796,14 @@ func SimVarLinearClAlpha() SimVar {
 }
 
 // SimVarStallAlpha Simvar
-func SimVarStallAlpha() SimVar {
+// args contain optional index
+func SimVarStallAlpha(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STALL ALPHA",
 		Units:    "Radians",
 		Settable: false,
@@ -6485,8 +10811,14 @@ func SimVarStallAlpha() SimVar {
 }
 
 // SimVarZeroLiftAlpha Simvar
-func SimVarZeroLiftAlpha() SimVar {
+// args contain optional index
+func SimVarZeroLiftAlpha(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZERO LIFT ALPHA",
 		Units:    "Radians",
 		Settable: false,
@@ -6494,8 +10826,14 @@ func SimVarZeroLiftAlpha() SimVar {
 }
 
 // SimVarCgAftLimit Simvar
-func SimVarCgAftLimit() SimVar {
+// args contain optional index
+func SimVarCgAftLimit(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG AFT LIMIT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6503,8 +10841,14 @@ func SimVarCgAftLimit() SimVar {
 }
 
 // SimVarCgFwdLimit Simvar
-func SimVarCgFwdLimit() SimVar {
+// args contain optional index
+func SimVarCgFwdLimit(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG FWD LIMIT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6512,8 +10856,14 @@ func SimVarCgFwdLimit() SimVar {
 }
 
 // SimVarCgMaxMach Simvar
-func SimVarCgMaxMach() SimVar {
+// args contain optional index
+func SimVarCgMaxMach(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG MAX MACH",
 		Units:    "Machs",
 		Settable: false,
@@ -6521,8 +10871,14 @@ func SimVarCgMaxMach() SimVar {
 }
 
 // SimVarCgMinMach Simvar
-func SimVarCgMinMach() SimVar {
+// args contain optional index
+func SimVarCgMinMach(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CG MIN MACH",
 		Units:    "Machs",
 		Settable: false,
@@ -6530,8 +10886,14 @@ func SimVarCgMinMach() SimVar {
 }
 
 // SimVarPayloadStationName Simvar
-func SimVarPayloadStationName() SimVar {
+// args contain optional index
+func SimVarPayloadStationName(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PAYLOAD STATION NAME",
 		Units:    "String",
 		Settable: false,
@@ -6539,8 +10901,14 @@ func SimVarPayloadStationName() SimVar {
 }
 
 // SimVarElevonDeflection Simvar
-func SimVarElevonDeflection() SimVar {
+// args contain optional index
+func SimVarElevonDeflection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELEVON DEFLECTION",
 		Units:    "Radians",
 		Settable: false,
@@ -6548,8 +10916,14 @@ func SimVarElevonDeflection() SimVar {
 }
 
 // SimVarExitType Simvar
-func SimVarExitType() SimVar {
+// args contain optional index
+func SimVarExitType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EXIT TYPE",
 		Units:    "Enum",
 		Settable: false,
@@ -6557,8 +10931,14 @@ func SimVarExitType() SimVar {
 }
 
 // SimVarExitPosx Simvar
-func SimVarExitPosx() SimVar {
+// args contain optional index
+func SimVarExitPosx(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EXIT POSX",
 		Units:    "Feet",
 		Settable: false,
@@ -6566,8 +10946,14 @@ func SimVarExitPosx() SimVar {
 }
 
 // SimVarExitPosy Simvar
-func SimVarExitPosy() SimVar {
+// args contain optional index
+func SimVarExitPosy(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EXIT POSY",
 		Units:    "Feet",
 		Settable: false,
@@ -6575,8 +10961,14 @@ func SimVarExitPosy() SimVar {
 }
 
 // SimVarExitPosz Simvar
-func SimVarExitPosz() SimVar {
+// args contain optional index
+func SimVarExitPosz(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EXIT POSZ",
 		Units:    "Feet",
 		Settable: false,
@@ -6584,8 +10976,14 @@ func SimVarExitPosz() SimVar {
 }
 
 // SimVarDecisionHeight Simvar
-func SimVarDecisionHeight() SimVar {
+// args contain optional index
+func SimVarDecisionHeight(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DECISION HEIGHT",
 		Units:    "Feet",
 		Settable: false,
@@ -6593,8 +10991,14 @@ func SimVarDecisionHeight() SimVar {
 }
 
 // SimVarDecisionAltitudeMsl Simvar
-func SimVarDecisionAltitudeMsl() SimVar {
+// args contain optional index
+func SimVarDecisionAltitudeMsl(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DECISION ALTITUDE MSL",
 		Units:    "Feet",
 		Settable: false,
@@ -6602,8 +11006,14 @@ func SimVarDecisionAltitudeMsl() SimVar {
 }
 
 // SimVarEmptyWeightPitchMoi Simvar
-func SimVarEmptyWeightPitchMoi() SimVar {
+// args contain optional index
+func SimVarEmptyWeightPitchMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EMPTY WEIGHT PITCH MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6611,8 +11021,14 @@ func SimVarEmptyWeightPitchMoi() SimVar {
 }
 
 // SimVarEmptyWeightRollMoi Simvar
-func SimVarEmptyWeightRollMoi() SimVar {
+// args contain optional index
+func SimVarEmptyWeightRollMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EMPTY WEIGHT ROLL MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6620,8 +11036,14 @@ func SimVarEmptyWeightRollMoi() SimVar {
 }
 
 // SimVarEmptyWeightYawMoi Simvar
-func SimVarEmptyWeightYawMoi() SimVar {
+// args contain optional index
+func SimVarEmptyWeightYawMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EMPTY WEIGHT YAW MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6629,8 +11051,14 @@ func SimVarEmptyWeightYawMoi() SimVar {
 }
 
 // SimVarEmptyWeightCrossCoupledMoi Simvar
-func SimVarEmptyWeightCrossCoupledMoi() SimVar {
+// args contain optional index
+func SimVarEmptyWeightCrossCoupledMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "EMPTY WEIGHT CROSS COUPLED MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6638,8 +11066,14 @@ func SimVarEmptyWeightCrossCoupledMoi() SimVar {
 }
 
 // SimVarTotalWeightPitchMoi Simvar
-func SimVarTotalWeightPitchMoi() SimVar {
+// args contain optional index
+func SimVarTotalWeightPitchMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WEIGHT PITCH MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6647,8 +11081,14 @@ func SimVarTotalWeightPitchMoi() SimVar {
 }
 
 // SimVarTotalWeightRollMoi Simvar
-func SimVarTotalWeightRollMoi() SimVar {
+// args contain optional index
+func SimVarTotalWeightRollMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WEIGHT ROLL MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6656,8 +11096,14 @@ func SimVarTotalWeightRollMoi() SimVar {
 }
 
 // SimVarTotalWeightYawMoi Simvar
-func SimVarTotalWeightYawMoi() SimVar {
+// args contain optional index
+func SimVarTotalWeightYawMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WEIGHT YAW MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6665,8 +11111,14 @@ func SimVarTotalWeightYawMoi() SimVar {
 }
 
 // SimVarTotalWeightCrossCoupledMoi Simvar
-func SimVarTotalWeightCrossCoupledMoi() SimVar {
+// args contain optional index
+func SimVarTotalWeightCrossCoupledMoi(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOTAL WEIGHT CROSS COUPLED MOI",
 		Units:    "slug feet squared",
 		Settable: false,
@@ -6674,8 +11126,14 @@ func SimVarTotalWeightCrossCoupledMoi() SimVar {
 }
 
 // SimVarWaterBallastValve Simvar
-func SimVarWaterBallastValve() SimVar {
+// args contain optional index
+func SimVarWaterBallastValve(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "WATER BALLAST VALVE",
 		Units:    "Bool",
 		Settable: false,
@@ -6683,8 +11141,14 @@ func SimVarWaterBallastValve() SimVar {
 }
 
 // SimVarMaxRatedEngineRpm Simvar
-func SimVarMaxRatedEngineRpm() SimVar {
+// args contain optional index
+func SimVarMaxRatedEngineRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MAX RATED ENGINE RPM",
 		Units:    "Rpm",
 		Settable: false,
@@ -6692,8 +11156,14 @@ func SimVarMaxRatedEngineRpm() SimVar {
 }
 
 // SimVarFullThrottleThrustToWeightRatio Simvar
-func SimVarFullThrottleThrustToWeightRatio() SimVar {
+// args contain optional index
+func SimVarFullThrottleThrustToWeightRatio(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FULL THROTTLE THRUST TO WEIGHT RATIO",
 		Units:    "Number",
 		Settable: false,
@@ -6701,8 +11171,14 @@ func SimVarFullThrottleThrustToWeightRatio() SimVar {
 }
 
 // SimVarPropAutoCruiseActive Simvar
-func SimVarPropAutoCruiseActive() SimVar {
+// args contain optional index
+func SimVarPropAutoCruiseActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP AUTO CRUISE ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -6710,8 +11186,14 @@ func SimVarPropAutoCruiseActive() SimVar {
 }
 
 // SimVarPropRotationAngle Simvar
-func SimVarPropRotationAngle() SimVar {
+// args contain optional index
+func SimVarPropRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -6719,8 +11201,14 @@ func SimVarPropRotationAngle() SimVar {
 }
 
 // SimVarPropBetaMax Simvar
-func SimVarPropBetaMax() SimVar {
+// args contain optional index
+func SimVarPropBetaMax(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP BETA MAX",
 		Units:    "Radians",
 		Settable: false,
@@ -6728,8 +11216,14 @@ func SimVarPropBetaMax() SimVar {
 }
 
 // SimVarPropBetaMin Simvar
-func SimVarPropBetaMin() SimVar {
+// args contain optional index
+func SimVarPropBetaMin(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP BETA MIN",
 		Units:    "Radians",
 		Settable: false,
@@ -6737,8 +11231,14 @@ func SimVarPropBetaMin() SimVar {
 }
 
 // SimVarPropBetaMinReverse Simvar
-func SimVarPropBetaMinReverse() SimVar {
+// args contain optional index
+func SimVarPropBetaMinReverse(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PROP BETA MIN REVERSE",
 		Units:    "Radians",
 		Settable: false,
@@ -6746,8 +11246,14 @@ func SimVarPropBetaMinReverse() SimVar {
 }
 
 // SimVarFuelSelectedTransferMode Simvar
-func SimVarFuelSelectedTransferMode() SimVar {
+// args contain optional index
+func SimVarFuelSelectedTransferMode(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FUEL SELECTED TRANSFER MODE",
 		Units:    "Enum",
 		Settable: false,
@@ -6755,8 +11261,14 @@ func SimVarFuelSelectedTransferMode() SimVar {
 }
 
 // SimVarDroppableObjectsUiName Simvar
-func SimVarDroppableObjectsUiName() SimVar {
+// args contain optional index
+func SimVarDroppableObjectsUiName(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DROPPABLE OBJECTS UI NAME",
 		Units:    "String",
 		Settable: false,
@@ -6764,8 +11276,14 @@ func SimVarDroppableObjectsUiName() SimVar {
 }
 
 // SimVarManualFuelPumpHandle Simvar
-func SimVarManualFuelPumpHandle() SimVar {
+// args contain optional index
+func SimVarManualFuelPumpHandle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MANUAL FUEL PUMP HANDLE",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6773,8 +11291,14 @@ func SimVarManualFuelPumpHandle() SimVar {
 }
 
 // SimVarBleedAirSourceControl Simvar
-func SimVarBleedAirSourceControl() SimVar {
+// args contain optional index
+func SimVarBleedAirSourceControl(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "BLEED AIR SOURCE CONTROL",
 		Units:    "Enum",
 		Settable: false,
@@ -6782,8 +11306,14 @@ func SimVarBleedAirSourceControl() SimVar {
 }
 
 // SimVarElectricalOldChargingAmps Simvar
-func SimVarElectricalOldChargingAmps() SimVar {
+// args contain optional index
+func SimVarElectricalOldChargingAmps(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ELECTRICAL OLD CHARGING AMPS",
 		Units:    "Amps",
 		Settable: false,
@@ -6791,8 +11321,14 @@ func SimVarElectricalOldChargingAmps() SimVar {
 }
 
 // SimVarHydraulicSwitch Simvar
-func SimVarHydraulicSwitch() SimVar {
+// args contain optional index
+func SimVarHydraulicSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HYDRAULIC SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6800,8 +11336,14 @@ func SimVarHydraulicSwitch() SimVar {
 }
 
 // SimVarConcordeVisorNoseHandle Simvar
-func SimVarConcordeVisorNoseHandle() SimVar {
+// args contain optional index
+func SimVarConcordeVisorNoseHandle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CONCORDE VISOR NOSE HANDLE",
 		Units:    "Enum",
 		Settable: false,
@@ -6809,8 +11351,14 @@ func SimVarConcordeVisorNoseHandle() SimVar {
 }
 
 // SimVarConcordeVisorPositionPercent Simvar
-func SimVarConcordeVisorPositionPercent() SimVar {
+// args contain optional index
+func SimVarConcordeVisorPositionPercent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CONCORDE VISOR POSITION PERCENT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6818,8 +11366,14 @@ func SimVarConcordeVisorPositionPercent() SimVar {
 }
 
 // SimVarConcordeNoseAngle Simvar
-func SimVarConcordeNoseAngle() SimVar {
+// args contain optional index
+func SimVarConcordeNoseAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CONCORDE NOSE ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -6827,8 +11381,14 @@ func SimVarConcordeNoseAngle() SimVar {
 }
 
 // SimVarRealismCrashWithOthers Simvar
-func SimVarRealismCrashWithOthers() SimVar {
+// args contain optional index
+func SimVarRealismCrashWithOthers(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "REALISM CRASH WITH OTHERS",
 		Units:    "Bool",
 		Settable: false,
@@ -6836,8 +11396,14 @@ func SimVarRealismCrashWithOthers() SimVar {
 }
 
 // SimVarRealismCrashDetection Simvar
-func SimVarRealismCrashDetection() SimVar {
+// args contain optional index
+func SimVarRealismCrashDetection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "REALISM CRASH DETECTION",
 		Units:    "Bool",
 		Settable: false,
@@ -6845,8 +11411,14 @@ func SimVarRealismCrashDetection() SimVar {
 }
 
 // SimVarManualInstrumentLights Simvar
-func SimVarManualInstrumentLights() SimVar {
+// args contain optional index
+func SimVarManualInstrumentLights(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "MANUAL INSTRUMENT LIGHTS",
 		Units:    "Bool",
 		Settable: false,
@@ -6854,8 +11426,14 @@ func SimVarManualInstrumentLights() SimVar {
 }
 
 // SimVarPitotIcePct Simvar
-func SimVarPitotIcePct() SimVar {
+// args contain optional index
+func SimVarPitotIcePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PITOT ICE PCT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6863,8 +11441,14 @@ func SimVarPitotIcePct() SimVar {
 }
 
 // SimVarSemibodyLoadfactorY Simvar
-func SimVarSemibodyLoadfactorY() SimVar {
+// args contain optional index
+func SimVarSemibodyLoadfactorY(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SEMIBODY LOADFACTOR Y",
 		Units:    "Number",
 		Settable: false,
@@ -6872,8 +11456,14 @@ func SimVarSemibodyLoadfactorY() SimVar {
 }
 
 // SimVarSemibodyLoadfactorYdot Simvar
-func SimVarSemibodyLoadfactorYdot() SimVar {
+// args contain optional index
+func SimVarSemibodyLoadfactorYdot(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SEMIBODY LOADFACTOR YDOT",
 		Units:    "Per second",
 		Settable: false,
@@ -6881,8 +11471,14 @@ func SimVarSemibodyLoadfactorYdot() SimVar {
 }
 
 // SimVarRadInsSwitch Simvar
-func SimVarRadInsSwitch() SimVar {
+// args contain optional index
+func SimVarRadInsSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "RAD INS SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -6890,8 +11486,14 @@ func SimVarRadInsSwitch() SimVar {
 }
 
 // SimVarSimulatedRadius Simvar
-func SimVarSimulatedRadius() SimVar {
+// args contain optional index
+func SimVarSimulatedRadius(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SIMULATED RADIUS",
 		Units:    "Feet",
 		Settable: false,
@@ -6899,8 +11501,14 @@ func SimVarSimulatedRadius() SimVar {
 }
 
 // SimVarStructuralIcePct Simvar
-func SimVarStructuralIcePct() SimVar {
+// args contain optional index
+func SimVarStructuralIcePct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STRUCTURAL ICE PCT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6908,8 +11516,14 @@ func SimVarStructuralIcePct() SimVar {
 }
 
 // SimVarArtificialGroundElevation Simvar
-func SimVarArtificialGroundElevation() SimVar {
+// args contain optional index
+func SimVarArtificialGroundElevation(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ARTIFICIAL GROUND ELEVATION",
 		Units:    "Feet",
 		Settable: false,
@@ -6917,8 +11531,14 @@ func SimVarArtificialGroundElevation() SimVar {
 }
 
 // SimVarSurfaceInfoValid Simvar
-func SimVarSurfaceInfoValid() SimVar {
+// args contain optional index
+func SimVarSurfaceInfoValid(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SURFACE INFO VALID",
 		Units:    "Bool",
 		Settable: false,
@@ -6926,8 +11546,14 @@ func SimVarSurfaceInfoValid() SimVar {
 }
 
 // SimVarSurfaceCondition Simvar
-func SimVarSurfaceCondition() SimVar {
+// args contain optional index
+func SimVarSurfaceCondition(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SURFACE CONDITION",
 		Units:    "Enum",
 		Settable: false,
@@ -6935,8 +11561,14 @@ func SimVarSurfaceCondition() SimVar {
 }
 
 // SimVarPushbackAngle Simvar
-func SimVarPushbackAngle() SimVar {
+// args contain optional index
+func SimVarPushbackAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -6944,8 +11576,14 @@ func SimVarPushbackAngle() SimVar {
 }
 
 // SimVarPushbackContactx Simvar
-func SimVarPushbackContactx() SimVar {
+// args contain optional index
+func SimVarPushbackContactx(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK CONTACTX",
 		Units:    "Feet",
 		Settable: false,
@@ -6953,8 +11591,14 @@ func SimVarPushbackContactx() SimVar {
 }
 
 // SimVarPushbackContacty Simvar
-func SimVarPushbackContacty() SimVar {
+// args contain optional index
+func SimVarPushbackContacty(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK CONTACTY",
 		Units:    "Feet",
 		Settable: false,
@@ -6962,8 +11606,14 @@ func SimVarPushbackContacty() SimVar {
 }
 
 // SimVarPushbackContactz Simvar
-func SimVarPushbackContactz() SimVar {
+// args contain optional index
+func SimVarPushbackContactz(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK CONTACTZ",
 		Units:    "Feet",
 		Settable: false,
@@ -6971,8 +11621,14 @@ func SimVarPushbackContactz() SimVar {
 }
 
 // SimVarPushbackWait Simvar
-func SimVarPushbackWait() SimVar {
+// args contain optional index
+func SimVarPushbackWait(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PUSHBACK WAIT",
 		Units:    "Bool",
 		Settable: false,
@@ -6980,8 +11636,14 @@ func SimVarPushbackWait() SimVar {
 }
 
 // SimVarYawStringAngle Simvar
-func SimVarYawStringAngle() SimVar {
+// args contain optional index
+func SimVarYawStringAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YAW STRING ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -6989,8 +11651,14 @@ func SimVarYawStringAngle() SimVar {
 }
 
 // SimVarYawStringPctExtended Simvar
-func SimVarYawStringPctExtended() SimVar {
+// args contain optional index
+func SimVarYawStringPctExtended(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "YAW STRING PCT EXTENDED",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -6998,8 +11666,14 @@ func SimVarYawStringPctExtended() SimVar {
 }
 
 // SimVarInductorCompassPercentDeviation Simvar
-func SimVarInductorCompassPercentDeviation() SimVar {
+// args contain optional index
+func SimVarInductorCompassPercentDeviation(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INDUCTOR COMPASS PERCENT DEVIATION",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7007,8 +11681,14 @@ func SimVarInductorCompassPercentDeviation() SimVar {
 }
 
 // SimVarInductorCompassHeadingRef Simvar
-func SimVarInductorCompassHeadingRef() SimVar {
+// args contain optional index
+func SimVarInductorCompassHeadingRef(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "INDUCTOR COMPASS HEADING REF",
 		Units:    "Radians",
 		Settable: false,
@@ -7016,8 +11696,14 @@ func SimVarInductorCompassHeadingRef() SimVar {
 }
 
 // SimVarAnemometerPctRpm Simvar
-func SimVarAnemometerPctRpm() SimVar {
+// args contain optional index
+func SimVarAnemometerPctRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ANEMOMETER PCT RPM",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7025,8 +11711,14 @@ func SimVarAnemometerPctRpm() SimVar {
 }
 
 // SimVarRotorRotationAngle Simvar
-func SimVarRotorRotationAngle() SimVar {
+// args contain optional index
+func SimVarRotorRotationAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ROTOR ROTATION ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -7034,8 +11726,14 @@ func SimVarRotorRotationAngle() SimVar {
 }
 
 // SimVarDiskPitchAngle Simvar
-func SimVarDiskPitchAngle() SimVar {
+// args contain optional index
+func SimVarDiskPitchAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DISK PITCH ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -7043,8 +11741,14 @@ func SimVarDiskPitchAngle() SimVar {
 }
 
 // SimVarDiskBankAngle Simvar
-func SimVarDiskBankAngle() SimVar {
+// args contain optional index
+func SimVarDiskBankAngle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DISK BANK ANGLE",
 		Units:    "Radians",
 		Settable: false,
@@ -7052,8 +11756,14 @@ func SimVarDiskBankAngle() SimVar {
 }
 
 // SimVarDiskPitchPct Simvar
-func SimVarDiskPitchPct() SimVar {
+// args contain optional index
+func SimVarDiskPitchPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DISK PITCH PCT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7061,8 +11771,14 @@ func SimVarDiskPitchPct() SimVar {
 }
 
 // SimVarDiskBankPct Simvar
-func SimVarDiskBankPct() SimVar {
+// args contain optional index
+func SimVarDiskBankPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DISK BANK PCT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7070,8 +11786,14 @@ func SimVarDiskBankPct() SimVar {
 }
 
 // SimVarDiskConingPct Simvar
-func SimVarDiskConingPct() SimVar {
+// args contain optional index
+func SimVarDiskConingPct(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "DISK CONING PCT",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7079,8 +11801,13 @@ func SimVarDiskConingPct() SimVar {
 }
 
 // SimVarNavVorLlaf64 Simvar
-func SimVarNavVorLlaf64() SimVar {
+func SimVarNavVorLlaf64(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV VOR LLAF64",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -7088,8 +11815,13 @@ func SimVarNavVorLlaf64() SimVar {
 }
 
 // SimVarNavGsLlaf64 Simvar
-func SimVarNavGsLlaf64() SimVar {
+func SimVarNavGsLlaf64(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "NAV GS LLAF64",
 		Units:    "SIMCONNECT_DATA_LATLONALT",
 		Settable: false,
@@ -7097,8 +11829,14 @@ func SimVarNavGsLlaf64() SimVar {
 }
 
 // SimVarStaticCgToGround Simvar
-func SimVarStaticCgToGround() SimVar {
+// args contain optional index
+func SimVarStaticCgToGround(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STATIC CG TO GROUND",
 		Units:    "Feet",
 		Settable: false,
@@ -7106,8 +11844,14 @@ func SimVarStaticCgToGround() SimVar {
 }
 
 // SimVarStaticPitch Simvar
-func SimVarStaticPitch() SimVar {
+// args contain optional index
+func SimVarStaticPitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "STATIC PITCH",
 		Units:    "Radians",
 		Settable: false,
@@ -7115,8 +11859,14 @@ func SimVarStaticPitch() SimVar {
 }
 
 // SimVarCrashSequence Simvar
-func SimVarCrashSequence() SimVar {
+// args contain optional index
+func SimVarCrashSequence(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CRASH SEQUENCE",
 		Units:    "Enum",
 		Settable: false,
@@ -7124,8 +11874,14 @@ func SimVarCrashSequence() SimVar {
 }
 
 // SimVarCrashFlag Simvar
-func SimVarCrashFlag() SimVar {
+// args contain optional index
+func SimVarCrashFlag(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CRASH FLAG",
 		Units:    "Enum",
 		Settable: false,
@@ -7133,8 +11889,14 @@ func SimVarCrashFlag() SimVar {
 }
 
 // SimVarTowReleaseHandle Simvar
-func SimVarTowReleaseHandle() SimVar {
+// args contain optional index
+func SimVarTowReleaseHandle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOW RELEASE HANDLE",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7142,8 +11904,14 @@ func SimVarTowReleaseHandle() SimVar {
 }
 
 // SimVarTowConnection Simvar
-func SimVarTowConnection() SimVar {
+// args contain optional index
+func SimVarTowConnection(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TOW CONNECTION",
 		Units:    "Bool",
 		Settable: false,
@@ -7151,8 +11919,14 @@ func SimVarTowConnection() SimVar {
 }
 
 // SimVarApuPctRpm Simvar
-func SimVarApuPctRpm() SimVar {
+// args contain optional index
+func SimVarApuPctRpm(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU PCT RPM",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7160,8 +11934,14 @@ func SimVarApuPctRpm() SimVar {
 }
 
 // SimVarApuPctStarter Simvar
-func SimVarApuPctStarter() SimVar {
+// args contain optional index
+func SimVarApuPctStarter(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU PCT STARTER",
 		Units:    "Percent over 100",
 		Settable: false,
@@ -7169,8 +11949,14 @@ func SimVarApuPctStarter() SimVar {
 }
 
 // SimVarApuVolts Simvar
-func SimVarApuVolts() SimVar {
+// args contain optional index
+func SimVarApuVolts(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU VOLTS",
 		Units:    "Volts",
 		Settable: false,
@@ -7178,8 +11964,14 @@ func SimVarApuVolts() SimVar {
 }
 
 // SimVarApuGeneratorSwitch Simvar
-func SimVarApuGeneratorSwitch() SimVar {
+// args contain optional index
+func SimVarApuGeneratorSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU GENERATOR SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -7187,8 +11979,14 @@ func SimVarApuGeneratorSwitch() SimVar {
 }
 
 // SimVarApuGeneratorActive Simvar
-func SimVarApuGeneratorActive() SimVar {
+// args contain optional index
+func SimVarApuGeneratorActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU GENERATOR ACTIVE",
 		Units:    "Bool",
 		Settable: false,
@@ -7196,8 +11994,14 @@ func SimVarApuGeneratorActive() SimVar {
 }
 
 // SimVarApuOnFireDetected Simvar
-func SimVarApuOnFireDetected() SimVar {
+// args contain optional index
+func SimVarApuOnFireDetected(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "APU ON FIRE DETECTED",
 		Units:    "Bool",
 		Settable: false,
@@ -7205,8 +12009,14 @@ func SimVarApuOnFireDetected() SimVar {
 }
 
 // SimVarPressurizationCabinAltitude Simvar
-func SimVarPressurizationCabinAltitude() SimVar {
+// args contain optional index
+func SimVarPressurizationCabinAltitude(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE",
 		Units:    "Feet",
 		Settable: false,
@@ -7214,8 +12024,14 @@ func SimVarPressurizationCabinAltitude() SimVar {
 }
 
 // SimVarPressurizationCabinAltitudeGoal Simvar
-func SimVarPressurizationCabinAltitudeGoal() SimVar {
+// args contain optional index
+func SimVarPressurizationCabinAltitudeGoal(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE GOAL",
 		Units:    "Feet",
 		Settable: false,
@@ -7223,8 +12039,14 @@ func SimVarPressurizationCabinAltitudeGoal() SimVar {
 }
 
 // SimVarPressurizationCabinAltitudeRate Simvar
-func SimVarPressurizationCabinAltitudeRate() SimVar {
+// args contain optional index
+func SimVarPressurizationCabinAltitudeRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE RATE",
 		Units:    "Feet per second",
 		Settable: false,
@@ -7232,8 +12054,14 @@ func SimVarPressurizationCabinAltitudeRate() SimVar {
 }
 
 // SimVarPressurizationPressureDifferential Simvar
-func SimVarPressurizationPressureDifferential() SimVar {
+// args contain optional index
+func SimVarPressurizationPressureDifferential(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURIZATION PRESSURE DIFFERENTIAL",
 		Units:    "foot pounds",
 		Settable: false,
@@ -7241,8 +12069,14 @@ func SimVarPressurizationPressureDifferential() SimVar {
 }
 
 // SimVarPressurizationDumpSwitch Simvar
-func SimVarPressurizationDumpSwitch() SimVar {
+// args contain optional index
+func SimVarPressurizationDumpSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "PRESSURIZATION DUMP SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -7250,8 +12084,14 @@ func SimVarPressurizationDumpSwitch() SimVar {
 }
 
 // SimVarFireBottleSwitch Simvar
-func SimVarFireBottleSwitch() SimVar {
+// args contain optional index
+func SimVarFireBottleSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FIRE BOTTLE SWITCH",
 		Units:    "Bool",
 		Settable: false,
@@ -7259,8 +12099,14 @@ func SimVarFireBottleSwitch() SimVar {
 }
 
 // SimVarFireBottleDischarged Simvar
-func SimVarFireBottleDischarged() SimVar {
+// args contain optional index
+func SimVarFireBottleDischarged(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "FIRE BOTTLE DISCHARGED",
 		Units:    "Bool",
 		Settable: false,
@@ -7268,8 +12114,14 @@ func SimVarFireBottleDischarged() SimVar {
 }
 
 // SimVarCabinNoSmokingAlertSwitch Simvar
-func SimVarCabinNoSmokingAlertSwitch() SimVar {
+// args contain optional index
+func SimVarCabinNoSmokingAlertSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CABIN NO SMOKING ALERT SWITCH",
 		Units:    "Bool",
 		Settable: true,
@@ -7277,8 +12129,14 @@ func SimVarCabinNoSmokingAlertSwitch() SimVar {
 }
 
 // SimVarCabinSeatbeltsAlertSwitch Simvar
-func SimVarCabinSeatbeltsAlertSwitch() SimVar {
+// args contain optional index
+func SimVarCabinSeatbeltsAlertSwitch(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "CABIN SEATBELTS ALERT SWITCH",
 		Units:    "Bool",
 		Settable: true,
@@ -7286,8 +12144,14 @@ func SimVarCabinSeatbeltsAlertSwitch() SimVar {
 }
 
 // SimVarGpwsWarning Simvar
-func SimVarGpwsWarning() SimVar {
+// args contain optional index
+func SimVarGpwsWarning(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPWS WARNING",
 		Units:    "Bool",
 		Settable: false,
@@ -7295,8 +12159,14 @@ func SimVarGpwsWarning() SimVar {
 }
 
 // SimVarGpwsSystemActive Simvar
-func SimVarGpwsSystemActive() SimVar {
+// args contain optional index
+func SimVarGpwsSystemActive(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPWS SYSTEM ACTIVE",
 		Units:    "Bool",
 		Settable: true,
@@ -7304,8 +12174,14 @@ func SimVarGpwsSystemActive() SimVar {
 }
 
 // SimVarIsLatitudeLongitudeFreezeOn Simvar
-func SimVarIsLatitudeLongitudeFreezeOn() SimVar {
+// args contain optional index
+func SimVarIsLatitudeLongitudeFreezeOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS LATITUDE LONGITUDE FREEZE ON",
 		Units:    "Bool",
 		Settable: false,
@@ -7313,8 +12189,14 @@ func SimVarIsLatitudeLongitudeFreezeOn() SimVar {
 }
 
 // SimVarIsAltitudeFreezeOn Simvar
-func SimVarIsAltitudeFreezeOn() SimVar {
+// args contain optional index
+func SimVarIsAltitudeFreezeOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS ALTITUDE FREEZE ON",
 		Units:    "Bool",
 		Settable: false,
@@ -7322,8 +12204,14 @@ func SimVarIsAltitudeFreezeOn() SimVar {
 }
 
 // SimVarIsAttitudeFreezeOn Simvar
-func SimVarIsAttitudeFreezeOn() SimVar {
+// args contain optional index
+func SimVarIsAttitudeFreezeOn(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "IS ATTITUDE FREEZE ON",
 		Units:    "Bool",
 		Settable: false,
@@ -7331,8 +12219,14 @@ func SimVarIsAttitudeFreezeOn() SimVar {
 }
 
 // SimVarAtcType Simvar
-func SimVarAtcType() SimVar {
+// args contain optional index
+func SimVarAtcType(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC TYPE",
 		Units:    "String64",
 		Settable: false,
@@ -7340,8 +12234,14 @@ func SimVarAtcType() SimVar {
 }
 
 // SimVarAtcModel Simvar
-func SimVarAtcModel() SimVar {
+// args contain optional index
+func SimVarAtcModel(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC MODEL",
 		Units:    "String64",
 		Settable: false,
@@ -7349,8 +12249,14 @@ func SimVarAtcModel() SimVar {
 }
 
 // SimVarAtcId Simvar
-func SimVarAtcId() SimVar {
+// args contain optional index
+func SimVarAtcId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC ID",
 		Units:    "String64",
 		Settable: true,
@@ -7358,8 +12264,14 @@ func SimVarAtcId() SimVar {
 }
 
 // SimVarAtcAirline Simvar
-func SimVarAtcAirline() SimVar {
+// args contain optional index
+func SimVarAtcAirline(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC AIRLINE",
 		Units:    "String64",
 		Settable: true,
@@ -7367,26 +12279,44 @@ func SimVarAtcAirline() SimVar {
 }
 
 // SimVarAtcFlightNumber Simvar
-func SimVarAtcFlightNumber() SimVar {
+// args contain optional index
+func SimVarAtcFlightNumber(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ATC FLIGHT NUMBER",
 		Units:    "String8",
 		Settable: true,
 	}
 }
 
-// SimVarTitle Simvar
-func SimVarTitle() SimVar {
+// SimVarTitle Actually not supported and crash FS2020
+// args contain optional index
+/*func SimVarTitle(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TITLE",
 		Units:    "Variable length string",
 		Settable: false,
 	}
-}
+}*/
 
 // SimVarHsiStationIdent Simvar
-func SimVarHsiStationIdent() SimVar {
+// args contain optional index
+func SimVarHsiStationIdent(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "HSI STATION IDENT",
 		Units:    "String8",
 		Settable: false,
@@ -7394,8 +12324,14 @@ func SimVarHsiStationIdent() SimVar {
 }
 
 // SimVarGpsApproachAirportId Simvar
-func SimVarGpsApproachAirportId() SimVar {
+// args contain optional index
+func SimVarGpsApproachAirportId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH AIRPORT ID",
 		Units:    "String",
 		Settable: false,
@@ -7403,8 +12339,14 @@ func SimVarGpsApproachAirportId() SimVar {
 }
 
 // SimVarGpsApproachApproachId Simvar
-func SimVarGpsApproachApproachId() SimVar {
+// args contain optional index
+func SimVarGpsApproachApproachId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH APPROACH ID",
 		Units:    "String",
 		Settable: false,
@@ -7412,8 +12354,14 @@ func SimVarGpsApproachApproachId() SimVar {
 }
 
 // SimVarGpsApproachTransitionId Simvar
-func SimVarGpsApproachTransitionId() SimVar {
+// args contain optional index
+func SimVarGpsApproachTransitionId(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "GPS APPROACH TRANSITION ID",
 		Units:    "String",
 		Settable: false,
@@ -7421,8 +12369,14 @@ func SimVarGpsApproachTransitionId() SimVar {
 }
 
 // SimVarAbsoluteTime Simvar
-func SimVarAbsoluteTime() SimVar {
+// args contain optional index
+func SimVarAbsoluteTime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ABSOLUTE TIME",
 		Units:    "Seconds",
 		Settable: false,
@@ -7430,8 +12384,14 @@ func SimVarAbsoluteTime() SimVar {
 }
 
 // SimVarZuluTime Simvar
-func SimVarZuluTime() SimVar {
+// args contain optional index
+func SimVarZuluTime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU TIME",
 		Units:    "Seconds",
 		Settable: false,
@@ -7439,8 +12399,14 @@ func SimVarZuluTime() SimVar {
 }
 
 // SimVarZuluDayOfWeek Simvar
-func SimVarZuluDayOfWeek() SimVar {
+// args contain optional index
+func SimVarZuluDayOfWeek(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU DAY OF WEEK",
 		Units:    "Number",
 		Settable: false,
@@ -7448,8 +12414,14 @@ func SimVarZuluDayOfWeek() SimVar {
 }
 
 // SimVarZuluDayOfMonth Simvar
-func SimVarZuluDayOfMonth() SimVar {
+// args contain optional index
+func SimVarZuluDayOfMonth(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU DAY OF MONTH",
 		Units:    "Number",
 		Settable: false,
@@ -7457,8 +12429,14 @@ func SimVarZuluDayOfMonth() SimVar {
 }
 
 // SimVarZuluMonthOfYear Simvar
-func SimVarZuluMonthOfYear() SimVar {
+// args contain optional index
+func SimVarZuluMonthOfYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU MONTH OF YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7466,8 +12444,14 @@ func SimVarZuluMonthOfYear() SimVar {
 }
 
 // SimVarZuluDayOfYear Simvar
-func SimVarZuluDayOfYear() SimVar {
+// args contain optional index
+func SimVarZuluDayOfYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU DAY OF YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7475,8 +12459,14 @@ func SimVarZuluDayOfYear() SimVar {
 }
 
 // SimVarZuluYear Simvar
-func SimVarZuluYear() SimVar {
+// args contain optional index
+func SimVarZuluYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "ZULU YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7484,8 +12474,14 @@ func SimVarZuluYear() SimVar {
 }
 
 // SimVarLocalTime Simvar
-func SimVarLocalTime() SimVar {
+// args contain optional index
+func SimVarLocalTime(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL TIME",
 		Units:    "Seconds",
 		Settable: false,
@@ -7493,8 +12489,14 @@ func SimVarLocalTime() SimVar {
 }
 
 // SimVarLocalDayOfWeek Simvar
-func SimVarLocalDayOfWeek() SimVar {
+// args contain optional index
+func SimVarLocalDayOfWeek(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL DAY OF WEEK",
 		Units:    "Number",
 		Settable: false,
@@ -7502,8 +12504,14 @@ func SimVarLocalDayOfWeek() SimVar {
 }
 
 // SimVarLocalDayOfMonth Simvar
-func SimVarLocalDayOfMonth() SimVar {
+// args contain optional index
+func SimVarLocalDayOfMonth(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL DAY OF MONTH",
 		Units:    "Number",
 		Settable: false,
@@ -7511,8 +12519,14 @@ func SimVarLocalDayOfMonth() SimVar {
 }
 
 // SimVarLocalMonthOfYear Simvar
-func SimVarLocalMonthOfYear() SimVar {
+// args contain optional index
+func SimVarLocalMonthOfYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL MONTH OF YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7520,8 +12534,14 @@ func SimVarLocalMonthOfYear() SimVar {
 }
 
 // SimVarLocalDayOfYear Simvar
-func SimVarLocalDayOfYear() SimVar {
+// args contain optional index
+func SimVarLocalDayOfYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL DAY OF YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7529,8 +12549,14 @@ func SimVarLocalDayOfYear() SimVar {
 }
 
 // SimVarLocalYear Simvar
-func SimVarLocalYear() SimVar {
+// args contain optional index
+func SimVarLocalYear(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "LOCAL YEAR",
 		Units:    "Number",
 		Settable: false,
@@ -7538,8 +12564,14 @@ func SimVarLocalYear() SimVar {
 }
 
 // SimVarTimeZoneOffset Simvar
-func SimVarTimeZoneOffset() SimVar {
+// args contain optional index
+func SimVarTimeZoneOffset(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TIME ZONE OFFSET",
 		Units:    "Seconds",
 		Settable: false,
@@ -7547,8 +12579,14 @@ func SimVarTimeZoneOffset() SimVar {
 }
 
 // SimVarTimeOfDay Simvar
-func SimVarTimeOfDay() SimVar {
+// args contain optional index
+func SimVarTimeOfDay(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "TIME OF DAY",
 		Units:    "Enum",
 		Settable: false,
@@ -7556,8 +12594,14 @@ func SimVarTimeOfDay() SimVar {
 }
 
 // SimVarSimulationRate Simvar
-func SimVarSimulationRate() SimVar {
+// args contain optional index
+func SimVarSimulationRate(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "SIMULATION RATE",
 		Units:    "Number",
 		Settable: false,
@@ -7565,8 +12609,14 @@ func SimVarSimulationRate() SimVar {
 }
 
 // SimVarUnitsOfMeasure Simvar
-func SimVarUnitsOfMeasure() SimVar {
+// args contain optional index
+func SimVarUnitsOfMeasure(args ...int) SimVar {
+	index := 0
+	if len(args) > 0 {
+		index = args[0]
+	}
 	return SimVar{
+		Index:    index,
 		Name:     "UNITS OF MEASURE",
 		Units:    "Enum",
 		Settable: false,

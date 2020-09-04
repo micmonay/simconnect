@@ -248,8 +248,8 @@ type SIMCONNECT_DATA_WAYPOINT struct {
 	Longitude       float64 // degrees
 	Altitude        float64 // feet
 	Flags           uint64
-	ktsSpeed        float64 // knots
-	percentThrottle float64
+	KtsSpeed        float64 // knots
+	PercentThrottle float64
 }
 
 type SIMCONNECT_DATA_LATLONALT struct {
@@ -259,7 +259,7 @@ type SIMCONNECT_DATA_LATLONALT struct {
 }
 
 type SIMCONNECT_DATA_XYZ struct {
-	x float64
-	y float64
-	z float64
+	X float64
+	Y float64
+	Z float64
 }
