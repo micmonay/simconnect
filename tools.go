@@ -17,6 +17,11 @@ func convStrToGoString(buf []byte) string {
 
 }
 
+func convGoStringtoBytes(str string) []byte {
+	str = str + "\x00"
+	return []byte(str)
+}
+
 func convCBytesToGoBytes(ptr unsafe.Pointer, size int) ([]byte, error) {
 	if size > 1<<30 {
 		return nil, errors.New("Dispatch return to big size array data")

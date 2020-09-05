@@ -13,7 +13,8 @@ type EasySimConnect struct {
 	delay      time.Duration
 	listSimVar [][]SimVar
 	listChan   []chan []SimVar
-	listEvent  []func(interface{})
+	indexEvent int
+	listEvent  map[int]func(interface{})
 }
 
 // NewEasySimConnect create instance of EasySimConnect
@@ -28,7 +29,8 @@ func NewEasySimConnect() (*EasySimConnect, error) {
 		100 * time.Millisecond,
 		make([][]SimVar, 0),
 		make([]chan []SimVar, 0),
-		make([]func(interface{}), 0),
+		0,
+		make(map[int]func(interface{})),
 	}, nil
 }
 
@@ -70,10 +72,15 @@ func (esc *EasySimConnect) runDispatch() {
 			logrus.Infoln("Connected to", convStrToGoString(recv.szApplicationName[:]))
 		case SIMCONNECT_RECV_ID_EVENT:
 			recv := *(*SIMCONNECT_RECV_EVENT)(ppdata)
-			esc.listEvent[recv.uEventID](recv)
+			cb, found := esc.listEvent[int(recv.uEventID)]
+			if !found {
+				logrus.Infof("Ignored event : %#v\n", recv)
+				continue
+			}
+			cb(recv)
 		case SIMCONNECT_RECV_ID_EVENT_FILENAME:
 			recv := *(*SIMCONNECT_RECV_EVENT_FILENAME)(ppdata)
-			esc.listEvent[recv.uEventID](recv)
+			esc.listEvent[int(recv.uEventID)](recv)
 		case SIMCONNECT_RECV_ID_EXCEPTION:
 			recv := *(*SIMCONNECT_RECV_EXCEPTION)(ppdata)
 			logrus.Infoln("SimConnect Exception : ", getTextException(recv.dwException), recv.dwSendID)
@@ -155,9 +162,9 @@ func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 	}
 }
 func (esc *EasySimConnect) connectSysEvent(name string, cb func(interface{})) {
-	esc.listEvent = append(esc.listEvent, cb)
-	eventID := len(esc.listEvent) - 1
-	err := esc.sc.SubscribeToSystemEvent(uint32(eventID), name)
+	esc.listEvent[esc.indexEvent] = cb
+	err := esc.sc.SubscribeToSystemEvent(uint32(esc.indexEvent), name)
+	esc.indexEvent++
 	if err != nil {
 		logrus.Infoln("Error connect to Event ", name, " in ConnectSysEventCrashed error :", err)
 	}
@@ -239,7 +246,7 @@ func (esc *EasySimConnect) ConnectSysEventFlightSaved() <-chan string {
 	return c
 }
 
-//ConnConnectSysEventFlightPlanActivated Request a notification when a new flight plan is activated. The filename of the activated flight plan is returned in a string.
+//ConnectSysEventFlightPlanActivated Request a notification when a new flight plan is activated. The filename of the activated flight plan is returned in a string.
 func (esc *EasySimConnect) ConnectSysEventFlightPlanActivated() <-chan string {
 	c := make(chan string)
 	esc.connectSysEvent(SimEventFlightPlanActivated, func(data interface{}) {
@@ -247,4 +254,17 @@ func (esc *EasySimConnect) ConnectSysEventFlightPlanActivated() <-chan string {
 		c <- convStrToGoString(event.szFileName[:])
 	})
 	return c
+}
+
+//ShowText is used to display a text menu, or scrolling or static text, on the screen.
+//
+//Time is in second and return chan with event
+func (esc *EasySimConnect) ShowText(str string, time float32, color PrintColor) (<-chan int, error) {
+	buf := convGoStringtoBytes(str)
+	cReturn := make(chan int)
+	esc.listEvent[esc.indexEvent] = func(data interface{}) {
+		cReturn <- int(data.(SIMCONNECT_RECV_EVENT).dwData)
+	}
+	esc.indexEvent++
+	return cReturn, esc.sc.Text(uint32(color), 60, 0, buf)
 }

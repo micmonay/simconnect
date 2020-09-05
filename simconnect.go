@@ -378,8 +378,9 @@ func (sc *SimConnect) FlightPlanLoad(szFileName string) error {
 }
 
 // Text SimConnect_Text(HANDLE hSimConnect, SIMCONNECT_TEXT_TYPE type, float fTimeSeconds, SIMCONNECT_CLIENT_EVENT_ID EventID, DWORD cbUnitSize, void * pDataSet);
-func (sc *SimConnect) Text(t uint32, fTimeSeconds float32, EventID uint32, cbUnitSize uint32, pDataSet *uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) Text(t uint32, fTimeSeconds float32, EventID uint32, pDataSet []byte) error {
+	size := len(pDataSet)
+	return sc.syscallSC.Text(sc.hSimConnect, uintptr(t), uintptr(fTimeSeconds), uintptr(EventID), uintptr(size), uintptr(unsafe.Pointer(&pDataSet[0])))
 }
 
 // SubscribeToFacilities SimConnect_SubscribeToFacilities(HANDLE hSimConnect, SIMCONNECT_FACILITY_LIST_TYPE type, SIMCONNECT_DATA_REQUEST_ID RequestID);

@@ -7,8 +7,7 @@ import (
 	"github.com/micmonay/simconnect"
 )
 
-// ExampleGetSimVar this example show how to get SimVar with EasySimConnect
-func Example_getSimVar() {
+func connect() *simconnect.EasySimConnect {
 	sc, err := simconnect.NewEasySimConnect()
 	if err != nil {
 		panic(err)
@@ -17,6 +16,12 @@ func Example_getSimVar() {
 	if err != nil {
 		panic(err)
 	}
+	return sc
+}
+
+// ExampleGetSimVar this example show how to get SimVar with EasySimConnect
+func Example_getSimVar() {
+	sc := connect()
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarPlaneAltitude(),
 		simconnect.SimVarPlaneLatitude(),
@@ -40,14 +45,7 @@ func Example_getSimVar() {
 }
 
 func Example_getSimVarWithIndex() {
-	sc, err := simconnect.NewEasySimConnect()
-	if err != nil {
-		panic(err)
-	}
-	err = sc.Connect("MyApp")
-	if err != nil {
-		panic(err)
-	}
+	sc := connect()
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarGeneralEngRpm(1),
 		simconnect.SimVarTransponderCode(1),
@@ -77,14 +75,7 @@ func Example_getSimVarWithIndex() {
 
 //
 func Example_setSimVar() {
-	sc, err := simconnect.NewEasySimConnect()
-	if err != nil {
-		panic(err)
-	}
-	err = sc.Connect("MyApp")
-	if err != nil {
-		panic(err)
-	}
+	sc := connect()
 	newalt := simconnect.SimVarPlaneAltitude()
 	newalt.SetFloat64(6000.0)
 	sc.SetSimObject(newalt)
@@ -93,14 +84,7 @@ func Example_setSimVar() {
 }
 
 func Example_getLatLonAlt() {
-	sc, err := simconnect.NewEasySimConnect()
-	if err != nil {
-		panic(err)
-	}
-	err = sc.Connect("MyApp")
-	if err != nil {
-		panic(err)
-	}
+	sc := connect()
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarStructLatlonalt(),
 	)
@@ -119,14 +103,7 @@ func Example_getLatLonAlt() {
 }
 
 func Example_getXYZ() {
-	sc, err := simconnect.NewEasySimConnect()
-	if err != nil {
-		panic(err)
-	}
-	err = sc.Connect("MyApp")
-	if err != nil {
-		panic(err)
-	}
+	sc := connect()
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarEyepointPosition(),
 	)
@@ -145,14 +122,7 @@ func Example_getXYZ() {
 }
 
 func Example_getString() {
-	sc, err := simconnect.NewEasySimConnect()
-	if err != nil {
-		panic(err)
-	}
-	err = sc.Connect("MyApp")
-	if err != nil {
-		panic(err)
-	}
+	sc := connect()
 	cSimVar := sc.ConnectStructToSimObject(
 		simconnect.SimVarAtcAirline(),
 		simconnect.SimVarCategory(),
@@ -165,5 +135,16 @@ func Example_getString() {
 		}
 
 	}
+	// Output:
+}
+
+// Example_showText Actually color no effect in the sim
+func Example_showText() {
+	sc := connect()
+	ch, err := sc.ShowText("Test", 1, simconnect.SIMCONNECT_TEXT_TYPE_PRINT_GREEN)
+	if err != nil {
+		panic(err)
+	}
+	log.Println(<-ch)
 	// Output:
 }
