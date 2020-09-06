@@ -1,6 +1,6 @@
-# Golang SimConnect binding for FS2020
+# Golang SimConnect binding for FS2020 :airplane:
 
-_This library is in developement and I have write little documentation. Please considerate this library as a testing version._
+_This library is in developement and I have write little documentation. Please considerate this library as a testing version. It is possible non backwards compatible in the future version. But you can enjoy :partying_face: and good fly !_
 
 For more information on how to use this library, please read [example_test.go](https://github.com/micmonay/simconnect/blob/master/example_test.go).
 
