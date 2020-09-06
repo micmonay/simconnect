@@ -18,7 +18,8 @@ const (
 	LogInfo
 )
 
-// EasySimConnect use for best easy use SimConnect in golang
+// EasySimConnect for easy use of SimConnect in golang
+// Please show example_test.go for use case
 type EasySimConnect struct {
 	sc           *SimConnect
 	delay        time.Duration
@@ -53,18 +54,18 @@ func NewEasySimConnect() (*EasySimConnect, error) {
 	}, nil
 }
 
-//SetLoggerLevel you can set log level in EasySimConnect
+// SetLoggerLevel you can set log level in EasySimConnect
 func (esc *EasySimConnect) SetLoggerLevel(level EasySimConnectLogLevel) {
 	esc.logLevel = level
 }
 
-//Close Finishing EasySimConnect, All object created with this EasySimConnect's instance is perished after call this function
+// Close Finishing EasySimConnect, All object created with this EasySimConnect's instance is perished after call this function
 func (esc *EasySimConnect) Close() <-chan bool {
 	esc.alive = false
 	return esc.cOpen
 }
 
-//SetDelay Select delay update SimVar and
+// SetDelay Select delay update SimVar and
 func (esc *EasySimConnect) SetDelay(t time.Duration) {
 	esc.delay = t
 }
@@ -78,6 +79,7 @@ func (esc *EasySimConnect) Connect(appName string) (<-chan bool, error) {
 	go esc.runDispatch()
 	return esc.cOpen, nil
 }
+
 func (esc *EasySimConnect) logf(level EasySimConnectLogLevel, format string, args ...interface{}) {
 	if level > esc.logLevel {
 		return
@@ -92,6 +94,7 @@ func (esc *EasySimConnect) logf(level EasySimConnectLogLevel, format string, arg
 		logrus.Errorf(format, args...)
 	}
 }
+
 func (esc *EasySimConnect) runDispatch() {
 	for esc.alive {
 		var ppdata unsafe.Pointer
@@ -166,7 +169,7 @@ func (esc *EasySimConnect) runDispatch() {
 	esc.cOpen <- false
 }
 
-// ConnectToSimVarObject this function return a chan. This chan return update with SimVar in order of argument
+// ConnectToSimVarObject return a chan. This chan return an array when updating they SimVars in order of argument of this function
 func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) chan []SimVar {
 	defineID := uint32(len(esc.listSimVar))
 	addedSimVar := make([]SimVar, 0)
@@ -185,7 +188,7 @@ func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) chan []Si
 	return chanSimVar
 }
 
-//SetSimObject use for set SimVar in FS
+// SetSimObject edit the SimVar in the simulator
 func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 	defineID := uint32(1 << 30)
 	err := esc.sc.AddToDataDefinition(defineID, simVar.Name, simVar.getUnitForDataDefinition(), simVar.GetDatumType(), 0, 0)
@@ -194,7 +197,7 @@ func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 		return
 	}
 	//esc.listSimVar = append(esc.listSimVar, []*SimVar{&simVar})
-	err = esc.sc.SetDataOnSimObject(defineID, SIMCONNECT_OBJECT_ID_USER, 0, 0, 8, simVar.data)
+	err = esc.sc.SetDataOnSimObject(defineID, SIMCONNECT_OBJECT_ID_USER, 0, 0, uint32(len(simVar.data)), simVar.data)
 	if err != nil {
 		esc.logf(LogInfo, "Error add SimVar ( %s ) in SetDataOnSimObject error : %#v", simVar.Name, err)
 		return
@@ -214,7 +217,7 @@ func (esc *EasySimConnect) connectSysEvent(name SystemEvent, cb func(interface{}
 	}
 }
 
-//ConnectSysEventCrashed Request a notification if the user aircraft crashes.
+// ConnectSysEventCrashed Request a notification if the user aircraft crashes.
 func (esc *EasySimConnect) ConnectSysEventCrashed() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventCrashed, func(data interface{}) {
@@ -223,7 +226,7 @@ func (esc *EasySimConnect) ConnectSysEventCrashed() <-chan bool {
 	return c
 }
 
-//ConnectSysEventCrashReset Request a notification when the crash cut-scene has completed.
+// ConnectSysEventCrashReset Request a notification when the crash cut-scene has completed.
 func (esc *EasySimConnect) ConnectSysEventCrashReset() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventCrashReset, func(data interface{}) {
@@ -232,7 +235,7 @@ func (esc *EasySimConnect) ConnectSysEventCrashReset() <-chan bool {
 	return c
 }
 
-//ConnectSysEventPause Request notifications when the flight is paused or unpaused, and also immediately returns the current pause state (1 = paused or 0 = unpaused). The state is returned in the dwData parameter.
+// ConnectSysEventPause Request notifications when the flight is paused or unpaused, and also immediately returns the current pause state (1 = paused or 0 = unpaused). The state is returned in the dwData parameter.
 func (esc *EasySimConnect) ConnectSysEventPause() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventPause, func(data interface{}) {
@@ -242,7 +245,7 @@ func (esc *EasySimConnect) ConnectSysEventPause() <-chan bool {
 	return c
 }
 
-//ConnectSysEventPaused Request a notification when the flight is paused.
+// ConnectSysEventPaused Request a notification when the flight is paused.
 func (esc *EasySimConnect) ConnectSysEventPaused() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventPaused, func(data interface{}) {
@@ -251,7 +254,7 @@ func (esc *EasySimConnect) ConnectSysEventPaused() <-chan bool {
 	return c
 }
 
-//ConnectSysEventFlightPlanDeactivated Request a notification when the active flight plan is de-activated.
+// ConnectSysEventFlightPlanDeactivated Request a notification when the active flight plan is de-activated.
 func (esc *EasySimConnect) ConnectSysEventFlightPlanDeactivated() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventFlightPlanDeactivated, func(data interface{}) {
@@ -260,7 +263,7 @@ func (esc *EasySimConnect) ConnectSysEventFlightPlanDeactivated() <-chan bool {
 	return c
 }
 
-//ConnectSysEventAircraftLoaded Request a notification when the aircraft flight dynamics file is changed. These files have a .AIR extension. The filename is returned in a string.
+// ConnectSysEventAircraftLoaded Request a notification when the aircraft flight dynamics file is changed. These files have a .AIR extension. The filename is returned in a string.
 func (esc *EasySimConnect) ConnectSysEventAircraftLoaded() <-chan string {
 	c := make(chan string)
 	esc.connectSysEvent(SystemEventAircraftLoaded, func(data interface{}) {
@@ -270,7 +273,7 @@ func (esc *EasySimConnect) ConnectSysEventAircraftLoaded() <-chan string {
 	return c
 }
 
-//ConnectSysEventFlightLoaded 	Request a notification when a flight is loaded. Note that when a flight is ended, a default flight is typically loaded, so these events will occur when flights and missions are started and finished. The filename of the flight loaded is returned in a string
+// ConnectSysEventFlightLoaded 	Request a notification when a flight is loaded. Note that when a flight is ended, a default flight is typically loaded, so these events will occur when flights and missions are started and finished. The filename of the flight loaded is returned in a string
 func (esc *EasySimConnect) ConnectSysEventFlightLoaded() <-chan string {
 	c := make(chan string)
 	esc.connectSysEvent(SystemEventFlightLoaded, func(data interface{}) {
@@ -280,7 +283,7 @@ func (esc *EasySimConnect) ConnectSysEventFlightLoaded() <-chan string {
 	return c
 }
 
-//ConnectSysEventFlightSaved 	Request a notification when a flight is saved correctly. The filename of the flight saved is returned in a string
+// ConnectSysEventFlightSaved 	Request a notification when a flight is saved correctly. The filename of the flight saved is returned in a string
 func (esc *EasySimConnect) ConnectSysEventFlightSaved() <-chan string {
 	c := make(chan string)
 	esc.connectSysEvent(SystemEventFlightSaved, func(data interface{}) {
@@ -290,7 +293,7 @@ func (esc *EasySimConnect) ConnectSysEventFlightSaved() <-chan string {
 	return c
 }
 
-//ConnectSysEventFlightPlanActivated Request a notification when a new flight plan is activated. The filename of the activated flight plan is returned in a string.
+// ConnectSysEventFlightPlanActivated Request a notification when a new flight plan is activated. The filename of the activated flight plan is returned in a string.
 func (esc *EasySimConnect) ConnectSysEventFlightPlanActivated() <-chan string {
 	c := make(chan string)
 	esc.connectSysEvent(SystemEventFlightPlanActivated, func(data interface{}) {
@@ -300,9 +303,9 @@ func (esc *EasySimConnect) ConnectSysEventFlightPlanActivated() <-chan string {
 	return c
 }
 
-//ShowText is used to display a text menu, or scrolling or static text, on the screen.
+// ShowText display a text on the screen in the simulator.
 //
-//Time is in second and return chan with event
+// ime is in second and return chan a confirmation for the simulator
 func (esc *EasySimConnect) ShowText(str string, time float32, color PrintColor) (<-chan int, error) {
 	cReturn := make(chan int)
 	esc.indexEvent++
@@ -315,7 +318,7 @@ func (esc *EasySimConnect) runSimEvent(simEvent SimEvent) {
 	esc.sc.TransmitClientEvent(SIMCONNECT_OBJECT_ID_USER, simEvent.eventID, simEvent.Value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY)
 }
 
-//NewSimEvent return new instance of SimEvent
+// NewSimEvent return new instance of SimEvent and you can run SimEvent.Run()
 func (esc *EasySimConnect) NewSimEvent(simEventStr KeySimEvent) SimEvent {
 	instance, found := esc.listSimEvent[simEventStr]
 	if found {
@@ -342,7 +345,7 @@ func (esc *EasySimConnect) NewSimEvent(simEventStr KeySimEvent) SimEvent {
 	return simEvent
 }
 
-//SimEvent Use for generate action on simulator
+// SimEvent Use for generate action in the simulator
 type SimEvent struct {
 	Mapping KeySimEvent
 	Value   int
@@ -351,13 +354,13 @@ type SimEvent struct {
 	eventID uint32
 }
 
-//Run return chan bool when receive true the event is finish
+// Run return chan bool when receive the event is finish
 func (s SimEvent) Run() <-chan int32 {
 	s.run(s)
 	return s.cb
 }
 
-//RunWithValue return chan bool when receive true the event is finish
+// RunWithValue return chan bool when receive the event is finish
 func (s SimEvent) RunWithValue(value int) <-chan int32 {
 	s.Value = value
 	return s.Run()
