@@ -2,7 +2,7 @@
 
 _This library is in developement and I have write little documentation. Please considerate this library as a testing version._
 
-For more information on how to use this library, please read `example_test.go`.
+For more information on how to use this library, please read [example_test.go](https://github.com/micmonay/simconnect/blob/master/example_test.go).
 
 With this library you can in simulator:
 - Read SimVar. (ex: Altitude, Longitude, Latitude, AP master status, Fuel, Engine...)
