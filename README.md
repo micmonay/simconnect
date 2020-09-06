@@ -51,9 +51,7 @@ func main() {
 			for _, simVar := range result {
 				var f float64
 				var err error
-				if simVar.Unit == "Radians" {
-					f, err = simVar.GetDegrees()
-				} else if strings.Contains(string(simVar.Unit), "String") {
+				if strings.Contains(string(simVar.Unit), "String") {
 					log.Printf("%s : %#v\n", simVar.Name, simVar.GetString())
 				} else if simVar.Unit == "SIMCONNECT_DATA_LATLONALT" {
 					data, _ := simVar.GetDataLatLonAlt()
