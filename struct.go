@@ -1,5 +1,7 @@
 package simconnect
 
+import "math"
+
 type SIMCONNECT_RECV struct {
 	dwSize    uint32 // record size
 	dwVersuib uint32 // interface version
@@ -255,7 +257,11 @@ type SIMCONNECT_DATA_WAYPOINT struct {
 type SIMCONNECT_DATA_LATLONALT struct {
 	Latitude  float64
 	Longitude float64
-	Altitude  float64
+	Altitude  float64 // actualy found the result in meter on FS2020
+}
+
+func (s SIMCONNECT_DATA_LATLONALT) GetFeets() int {
+	return int(math.Round(3.280839895 * s.Altitude))
 }
 
 type SIMCONNECT_DATA_XYZ struct {

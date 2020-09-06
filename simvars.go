@@ -1,5 +1,6 @@
 package simconnect
 
+// Dcumentation on http://www.prepar3d.com/SDKv3/LearningCenter/utilities/variables/simulation_variables.html
 import (
 	"bytes"
 	"encoding/binary"
@@ -7,28 +8,111 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
-
-	"github.com/sirupsen/logrus"
 )
+
+type SimVarUnit string
+
+const (
+	UnitBool                    SimVarUnit = "Bool"
+	UnitFeetpersecond           SimVarUnit = "Feetpersecond"
+	UnitPercentover100          SimVarUnit = "Percentover100"
+	UnitNumber                  SimVarUnit = "Number"
+	UnitGallons                 SimVarUnit = "Gallons"
+	UnitString                  SimVarUnit = "String"
+	UnitBoolString              SimVarUnit = "Bool/String"
+	UnitFeet                    SimVarUnit = "Feet"
+	UnitSimconnectDataXyz       SimVarUnit = "SimconnectDataXyz"
+	UnitMask                    SimVarUnit = "Mask"
+	UnitKnots                   SimVarUnit = "Knots"
+	UnitSimconnectDataWaypoint  SimVarUnit = "SimconnectDataWaypoint"
+	UnitDegrees                 SimVarUnit = "Degrees"
+	UnitSeconds                 SimVarUnit = "Seconds"
+	UnitBoolean                 SimVarUnit = "Boolean"
+	UnitSimconnectDataLatlonalt SimVarUnit = "SimconnectDataLatlonalt"
+	UnitPercent                 SimVarUnit = "Percent"
+	UnitEnum                    SimVarUnit = "Enum"
+	UnitRpm                     SimVarUnit = "Rpm"
+	UnitRankine                 SimVarUnit = "Rankine"
+	UnitPsi                     SimVarUnit = "Psi"
+	UnitHours                   SimVarUnit = "Hours"
+	UnitPosition                SimVarUnit = "Position"
+	Unitftlbpersecond           SimVarUnit = "ftlbpersecond"
+	UnitFootpound               SimVarUnit = "Footpound"
+	UnitCelsius                 SimVarUnit = "Celsius"
+	UnitPoundsperhour           SimVarUnit = "Poundsperhour"
+	UnitRatio                   SimVarUnit = "Ratio"
+	UnitPounds                  SimVarUnit = "Pounds"
+	UnitRadians                 SimVarUnit = "Radians"
+	UnitFootpounds              SimVarUnit = "Footpounds"
+	UnitpoundForcepersquareinch SimVarUnit = "pound-forcepersquareinch"
+	UnitinHg                    SimVarUnit = "inHg"
+	UnitPSI                     SimVarUnit = "PSI"
+	UnitFeetpersecondsquared    SimVarUnit = "Feetpersecondsquared"
+	UnitMeters                  SimVarUnit = "Meters"
+	UnitMach                    SimVarUnit = "Mach"
+	UnitMillibars               SimVarUnit = "Millibars"
+	UnitRadianspersecond        SimVarUnit = "Radianspersecond"
+	UnitGforce                  SimVarUnit = "Gforce"
+	UnitFrequencyBCD16          SimVarUnit = "FrequencyBCD16"
+	UnitMHz                     SimVarUnit = "MHz"
+	UnitNauticalmiles           SimVarUnit = "Nauticalmiles"
+	UnitFrequencyADFBCD32       SimVarUnit = "FrequencyADFBCD32"
+	UnitHz                      SimVarUnit = "Hz"
+	UnitBCO16                   SimVarUnit = "BCO16"
+	UnitMeterspersecond         SimVarUnit = "Meterspersecond"
+	UnitFlags                   SimVarUnit = "Flags"
+	Unitpsf                     SimVarUnit = "psf"
+	UnitPercentage              SimVarUnit = "Percentage"
+	UnitFeetPMinute             SimVarUnit = "Feet/minute"
+	UnitSlugspercubicfeet       SimVarUnit = "Slugspercubicfeet"
+	UnitAmperes                 SimVarUnit = "Amperes"
+	UnitVolts                   SimVarUnit = "Volts"
+	UnitPoundforcepersquarefoot SimVarUnit = "Poundforcepersquarefoot"
+	UnitGForce                  SimVarUnit = "GForce"
+	UnitFeetperminute           SimVarUnit = "Feetperminute"
+	UnitPoundspersquarefoot     SimVarUnit = "Poundspersquarefoot"
+	Unitfootpounds              SimVarUnit = "footpounds"
+	UnitSquarefeet              SimVarUnit = "Squarefeet"
+	UnitPerradian               SimVarUnit = "Perradian"
+	UnitMachs                   SimVarUnit = "Machs"
+	Unitslugfeetsquared         SimVarUnit = "slugfeetsquared"
+	UnitAmps                    SimVarUnit = "Amps"
+	UnitPersecond               SimVarUnit = "Persecond"
+	UnitString64                SimVarUnit = "String64"
+	UnitString8                 SimVarUnit = "String8"
+	UnitVariablelengthstring    SimVarUnit = "Variablelengthstring"
+)
+
+func readArgs(args []interface{}, defIndex int, defUnit SimVarUnit) (int, SimVarUnit) {
+	for _, arg := range args {
+		if s, ok := arg.(SimVarUnit); ok {
+			defUnit = s
+		}
+		if i, ok := arg.(int); ok {
+			defIndex = i
+		}
+	}
+	return defIndex, defUnit
+}
 
 // SimVar is usued for all SimVar describtion
 type SimVar struct {
 	Name     string
-	Units    string
+	Unit     SimVarUnit
 	Settable bool
 	Index    int
 	data     []byte
 }
 
-func (s *SimVar) getUnitsForDataDefinition() string {
-	if strings.Contains(s.Units, "String") ||
-		strings.Contains(s.Units, "string") ||
-		s.Units == "SIMCONNECT_DATA_LATLONALT" ||
-		s.Units == "SIMCONNECT_DATA_XYZ" ||
-		s.Units == "SIMCONNECT_DATA_WAYPOINT" {
+func (s *SimVar) getUnitForDataDefinition() string {
+	if strings.Contains(string(s.Unit), "String") ||
+		strings.Contains(string(s.Unit), "string") ||
+		s.Unit == "SIMCONNECT_DATA_LATLONALT" ||
+		s.Unit == "SIMCONNECT_DATA_XYZ" ||
+		s.Unit == "SIMCONNECT_DATA_WAYPOINT" {
 		return ""
 	}
-	return s.Units
+	return string(s.Unit)
 }
 func (s *SimVar) getNameForDataDefinition() string {
 	if strings.Contains(s.Name, ":index") {
@@ -41,9 +125,7 @@ func (s *SimVar) GetData() []byte {
 }
 
 func (s *SimVar) GetDatumType() uint32 {
-	switch s.Units {
-	case "Bool":
-		return SIMCONNECT_DATATYPE_INT32
+	switch s.Unit {
 	case "String8":
 		return SIMCONNECT_DATATYPE_STRING8
 	case "String64":
@@ -84,8 +166,7 @@ func (s *SimVar) GetSize() int {
 	case SIMCONNECT_DATATYPE_WAYPOINT:
 		return int(unsafe.Sizeof(SIMCONNECT_DATA_WAYPOINT{}))
 	}
-	logrus.Warnln("Not found size for the type : ", s.GetDatumType())
-	return 0
+	return 8
 }
 
 func (s *SimVar) GetFloat64() (float64, error) {
@@ -153,12472 +234,9973 @@ func (s *SimVar) GetString() string {
 }
 
 // SimVarAutopilotPitchHold Simvar
-// args contain optional index
-func SimVarAutopilotPitchHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotPitchHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT PITCH HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructAmbientWind Simvar
-// args contain optional index
-func SimVarStructAmbientWind(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructAmbientWind(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT AMBIENT WIND",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLaunchbarPosition Simvar
-// args contain optional index
-func SimVarLaunchbarPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLaunchbarPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "LAUNCHBAR POSITION",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNumberOfCatapults Simvar
-// args contain optional index
-func SimVarNumberOfCatapults(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNumberOfCatapults(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NUMBER OF CATAPULTS",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHoldbackBarInstalled Simvar
-// args contain optional index
-func SimVarHoldbackBarInstalled(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHoldbackBarInstalled(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HOLDBACK BAR INSTALLED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBlastShieldPosition Simvar
-// args contain optional index
-func SimVarBlastShieldPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBlastShieldPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "BLAST SHIELD POSITION:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngDetonating Simvar
-// args contain optional index
-func SimVarRecipEngDetonating(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngDetonating(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG DETONATING:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngCylinderHealth Simvar
-// args contain optional index
-func SimVarRecipEngCylinderHealth(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngCylinderHealth(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG CYLINDER HEALTH:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngNumCylinders Simvar
-// args contain optional index
-func SimVarRecipEngNumCylinders(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngNumCylinders(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG NUM CYLINDERS",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngNumCylindersFailed Simvar
-// args contain optional index
-func SimVarRecipEngNumCylindersFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngNumCylindersFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG NUM CYLINDERS FAILED",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngAntidetonationTankValve Simvar
-// args contain optional index
-func SimVarRecipEngAntidetonationTankValve(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngAntidetonationTankValve(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK VALVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngAntidetonationTankQuantity Simvar
-// args contain optional index
-func SimVarRecipEngAntidetonationTankQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngAntidetonationTankQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK QUANTITY:index",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngAntidetonationTankMaxQuantity Simvar
-// args contain optional index
-func SimVarRecipEngAntidetonationTankMaxQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngAntidetonationTankMaxQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG ANTIDETONATION TANK MAX QUANTITY:index",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngNitrousTankValve Simvar
-// args contain optional index
-func SimVarRecipEngNitrousTankValve(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngNitrousTankValve(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK VALVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngNitrousTankQuantity Simvar
-// args contain optional index
-func SimVarRecipEngNitrousTankQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngNitrousTankQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK QUANTITY:index",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngNitrousTankMaxQuantity Simvar
-// args contain optional index
-func SimVarRecipEngNitrousTankMaxQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngNitrousTankMaxQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG NITROUS TANK MAX QUANTITY:index",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPayloadStationObject Simvar
-// args contain optional index
-func SimVarPayloadStationObject(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPayloadStationObject(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "PAYLOAD STATION OBJECT:index",
-		Units:    "String",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPayloadStationNumSimobjects Simvar
-// args contain optional index
-func SimVarPayloadStationNumSimobjects(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPayloadStationNumSimobjects(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "PAYLOAD STATION NUM SIMOBJECTS:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSlingObjectAttached Simvar
-// args contain optional index
-func SimVarSlingObjectAttached(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingObjectAttached(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool/String")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING OBJECT ATTACHED:index",
-		Units:    "Bool/String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSlingCableBroken Simvar
-// args contain optional index
-func SimVarSlingCableBroken(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingCableBroken(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING CABLE BROKEN:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSlingCableExtendedLength Simvar
-// args contain optional index
-func SimVarSlingCableExtendedLength(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingCableExtendedLength(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING CABLE EXTENDED LENGTH:index",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarSlingActivePayloadStation Simvar
-// args contain optional index
-func SimVarSlingActivePayloadStation(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingActivePayloadStation(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING ACTIVE PAYLOAD STATION:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarSlingHoistPercentDeployed Simvar
-// args contain optional index
-func SimVarSlingHoistPercentDeployed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingHoistPercentDeployed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING HOIST PERCENT DEPLOYED:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSlingHookInPickupMode Simvar
-// args contain optional index
-func SimVarSlingHookInPickupMode(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSlingHookInPickupMode(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SLING HOOK IN PICKUP MODE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsAttachedToSling Simvar
-// args contain optional index
-func SimVarIsAttachedToSling(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsAttachedToSling(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS ATTACHED TO SLING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAlternateStaticSourceOpen Simvar
-// args contain optional index
-func SimVarAlternateStaticSourceOpen(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAlternateStaticSourceOpen(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ALTERNATE STATIC SOURCE OPEN",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronTrimPct Simvar
-// args contain optional index
-func SimVarAileronTrimPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronTrimPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON TRIM PCT",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRudderTrimPct Simvar
-// args contain optional index
-func SimVarRudderTrimPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderTrimPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER TRIM PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarLightOnStates Simvar
-// args contain optional index
-func SimVarLightOnStates(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightOnStates(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT ON STATES",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightStates Simvar
-// args contain optional index
-func SimVarLightStates(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightStates(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT STATES",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLandingLightPbh Simvar
-// args contain optional index
-func SimVarLandingLightPbh(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLandingLightPbh(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "LANDING LIGHT PBH",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightTaxiOn Simvar
-// args contain optional index
-func SimVarLightTaxiOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightTaxiOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT TAXI ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightStrobeOn Simvar
-// args contain optional index
-func SimVarLightStrobeOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightStrobeOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT STROBE ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightPanelOn Simvar
-// args contain optional index
-func SimVarLightPanelOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightPanelOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT PANEL ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightRecognitionOn Simvar
-// args contain optional index
-func SimVarLightRecognitionOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightRecognitionOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT RECOGNITION ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightWingOn Simvar
-// args contain optional index
-func SimVarLightWingOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightWingOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT WING ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightLogoOn Simvar
-// args contain optional index
-func SimVarLightLogoOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightLogoOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT LOGO ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightCabinOn Simvar
-// args contain optional index
-func SimVarLightCabinOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightCabinOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT CABIN ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightHeadOn Simvar
-// args contain optional index
-func SimVarLightHeadOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightHeadOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT HEAD ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightBrakeOn Simvar
-// args contain optional index
-func SimVarLightBrakeOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightBrakeOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT BRAKE ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightNavOn Simvar
-// args contain optional index
-func SimVarLightNavOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightNavOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT NAV ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightBeaconOn Simvar
-// args contain optional index
-func SimVarLightBeaconOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightBeaconOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT BEACON ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightLandingOn Simvar
-// args contain optional index
-func SimVarLightLandingOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightLandingOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT LANDING ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiDesiredSpeed Simvar
-// args contain optional index
-func SimVarAiDesiredSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiDesiredSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AI DESIRED SPEED",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiWaypointList Actually not supported
-// args contain optional index
-func SimVarAiWaypointList(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiWaypointList(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_WAYPOINT")
 	return SimVar{
 		Index:    index,
 		Name:     "AI WAYPOINT LIST",
-		Units:    "SIMCONNECT_DATA_WAYPOINT",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiCurrentWaypoint Simvar
-// args contain optional index
-func SimVarAiCurrentWaypoint(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiCurrentWaypoint(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "AI CURRENT WAYPOINT",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiDesiredHeading Simvar
-// args contain optional index
-func SimVarAiDesiredHeading(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiDesiredHeading(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "AI DESIRED HEADING",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiGroundturntime Simvar
-// args contain optional index
-func SimVarAiGroundturntime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiGroundturntime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "AI GROUNDTURNTIME",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiGroundcruisespeed Simvar
-// args contain optional index
-func SimVarAiGroundcruisespeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiGroundcruisespeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AI GROUNDCRUISESPEED",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiGroundturnspeed Simvar
-// args contain optional index
-func SimVarAiGroundturnspeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiGroundturnspeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AI GROUNDTURNSPEED",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAiTrafficIsifr Simvar
-// args contain optional index
-func SimVarAiTrafficIsifr(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficIsifr(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Boolean")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC ISIFR",
-		Units:    "Boolean",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficState Simvar
-// args contain optional index
-func SimVarAiTrafficState(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficState(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC STATE",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficCurrentAirport Simvar
-// args contain optional index
-func SimVarAiTrafficCurrentAirport(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficCurrentAirport(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC CURRENT AIRPORT",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficAssignedRunway Simvar
-// args contain optional index
-func SimVarAiTrafficAssignedRunway(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficAssignedRunway(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC ASSIGNED RUNWAY",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficAssignedParking Simvar
-// args contain optional index
-func SimVarAiTrafficAssignedParking(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficAssignedParking(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC ASSIGNED PARKING",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficFromairport Simvar
-// args contain optional index
-func SimVarAiTrafficFromairport(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficFromairport(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC FROMAIRPORT",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficToairport Simvar
-// args contain optional index
-func SimVarAiTrafficToairport(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficToairport(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC TOAIRPORT",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficEtd Simvar
-// args contain optional index
-func SimVarAiTrafficEtd(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficEtd(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC ETD",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAiTrafficEta Simvar
-// args contain optional index
-func SimVarAiTrafficEta(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAiTrafficEta(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "AI TRAFFIC ETA",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDroppableObjectsType Simvar
-// args contain optional index
-func SimVarDroppableObjectsType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDroppableObjectsType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "DROPPABLE OBJECTS TYPE:index",
-		Units:    "String",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarDroppableObjectsCount Simvar
-// args contain optional index
-func SimVarDroppableObjectsCount(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDroppableObjectsCount(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "DROPPABLE OBJECTS COUNT:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWingFlexPct Simvar
-// args contain optional index
-func SimVarWingFlexPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWingFlexPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WING FLEX PCT:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarApplyHeatToSystems Simvar
-// args contain optional index
-func SimVarApplyHeatToSystems(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApplyHeatToSystems(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "APPLY HEAT TO SYSTEMS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAdfLatlonalt Simvar
-// args contain optional index
-func SimVarAdfLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF LATLONALT:index",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavVorLatlonalt Simvar
-// args contain optional index
-func SimVarNavVorLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavVorLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV VOR LATLONALT:index",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGsLatlonalt Simvar
-// args contain optional index
-func SimVarNavGsLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavGsLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GS LATLONALT:index",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavDmeLatlonalt Simvar
-// args contain optional index
-func SimVarNavDmeLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavDmeLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV DME LATLONALT:index",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarInnerMarkerLatlonalt Simvar
-// args contain optional index
-func SimVarInnerMarkerLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarInnerMarkerLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "INNER MARKER LATLONALT",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMiddleMarkerLatlonalt Simvar
-// args contain optional index
-func SimVarMiddleMarkerLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMiddleMarkerLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "MIDDLE MARKER LATLONALT",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarOuterMarkerLatlonalt Simvar
-// args contain optional index
-func SimVarOuterMarkerLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarOuterMarkerLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "OUTER MARKER LATLONALT",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructLatlonalt Simvar
-// args contain optional index
-func SimVarStructLatlonalt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructLatlonalt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT LATLONALT",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructLatlonaltpbh Simvar
-// args contain optional index
-func SimVarStructLatlonaltpbh(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructLatlonaltpbh(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT LATLONALTPBH",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructSurfaceRelativeVelocity Simvar
-// args contain optional index
-func SimVarStructSurfaceRelativeVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructSurfaceRelativeVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT SURFACE RELATIVE VELOCITY",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructWorldvelocity Simvar
-// args contain optional index
-func SimVarStructWorldvelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructWorldvelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT WORLDVELOCITY",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructWorldRotationVelocity Simvar
-// args contain optional index
-func SimVarStructWorldRotationVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructWorldRotationVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT WORLD ROTATION VELOCITY",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructBodyVelocity Simvar
-// args contain optional index
-func SimVarStructBodyVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructBodyVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT BODY VELOCITY",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructBodyRotationVelocity Simvar
-// args contain optional index
-func SimVarStructBodyRotationVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructBodyRotationVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT BODY ROTATION VELOCITY",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructWorldAcceleration Simvar
-// args contain optional index
-func SimVarStructWorldAcceleration(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructWorldAcceleration(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT WORLD ACCELERATION",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructEnginePosition Simvar
-// args contain optional index
-func SimVarStructEnginePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructEnginePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT ENGINE POSITION:index",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructEyepointDynamicAngle Simvar
-// args contain optional index
-func SimVarStructEyepointDynamicAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructEyepointDynamicAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT EYEPOINT DYNAMIC ANGLE",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructEyepointDynamicOffset Simvar
-// args contain optional index
-func SimVarStructEyepointDynamicOffset(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructEyepointDynamicOffset(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCT EYEPOINT DYNAMIC OFFSET",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEyepointPosition Simvar
-// args contain optional index
-func SimVarEyepointPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEyepointPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_XYZ")
 	return SimVar{
 		Index:    index,
 		Name:     "EYEPOINT POSITION",
-		Units:    "SIMCONNECT_DATA_XYZ",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireElacSwitch Simvar
-// args contain optional index
-func SimVarFlyByWireElacSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireElacSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE ELAC SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireFacSwitch Simvar
-// args contain optional index
-func SimVarFlyByWireFacSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireFacSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE FAC SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireSecSwitch Simvar
-// args contain optional index
-func SimVarFlyByWireSecSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireSecSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE SEC SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireElacFailed Simvar
-// args contain optional index
-func SimVarFlyByWireElacFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireElacFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE ELAC FAILED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireFacFailed Simvar
-// args contain optional index
-func SimVarFlyByWireFacFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireFacFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE FAC FAILED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlyByWireSecFailed Simvar
-// args contain optional index
-func SimVarFlyByWireSecFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlyByWireSecFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLY BY WIRE SEC FAILED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNumberOfEngines Simvar
-// args contain optional index
-func SimVarNumberOfEngines(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNumberOfEngines(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NUMBER OF ENGINES",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngineControlSelect Simvar
-// args contain optional index
-func SimVarEngineControlSelect(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngineControlSelect(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "ENGINE CONTROL SELECT",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarThrottleLowerLimit Simvar
-// args contain optional index
-func SimVarThrottleLowerLimit(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarThrottleLowerLimit(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "THROTTLE LOWER LIMIT",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngineType Simvar
-// args contain optional index
-func SimVarEngineType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngineType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "ENGINE TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMasterIgnitionSwitch Simvar
-// args contain optional index
-func SimVarMasterIgnitionSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMasterIgnitionSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "MASTER IGNITION SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngCombustion Simvar
-// args contain optional index
-func SimVarGeneralEngCombustion(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngCombustion(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG COMBUSTION:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngMasterAlternator Simvar
-// args contain optional index
-func SimVarGeneralEngMasterAlternator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngMasterAlternator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG MASTER ALTERNATOR:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngFuelPumpSwitch Simvar
-// args contain optional index
-func SimVarGeneralEngFuelPumpSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFuelPumpSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FUEL PUMP SWITCH:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngFuelPumpOn Simvar
-// args contain optional index
-func SimVarGeneralEngFuelPumpOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFuelPumpOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FUEL PUMP ON:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngRpm Simvar
-// args contain optional index
-func SimVarGeneralEngRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG RPM:index",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngPctMaxRpm Simvar
-// args contain optional index
-func SimVarGeneralEngPctMaxRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngPctMaxRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG PCT MAX RPM:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngMaxReachedRpm Simvar
-// args contain optional index
-func SimVarGeneralEngMaxReachedRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngMaxReachedRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG MAX REACHED RPM:index",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngThrottleLeverPosition Simvar
-// args contain optional index
-func SimVarGeneralEngThrottleLeverPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngThrottleLeverPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG THROTTLE LEVER POSITION:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngMixtureLeverPosition Simvar
-// args contain optional index
-func SimVarGeneralEngMixtureLeverPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngMixtureLeverPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG MIXTURE LEVER POSITION:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngPropellerLeverPosition Simvar
-// args contain optional index
-func SimVarGeneralEngPropellerLeverPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngPropellerLeverPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG PROPELLER LEVER POSITION:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngStarter Simvar
-// args contain optional index
-func SimVarGeneralEngStarter(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngStarter(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG STARTER:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngExhaustGasTemperature Simvar
-// args contain optional index
-func SimVarGeneralEngExhaustGasTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngExhaustGasTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG EXHAUST GAS TEMPERATURE:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngOilPressure Simvar
-// args contain optional index
-func SimVarGeneralEngOilPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngOilPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Psi")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG OIL PRESSURE:index",
-		Units:    "Psi",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngOilLeakedPercent Simvar
-// args contain optional index
-func SimVarGeneralEngOilLeakedPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngOilLeakedPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG OIL LEAKED PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngCombustionSoundPercent Simvar
-// args contain optional index
-func SimVarGeneralEngCombustionSoundPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngCombustionSoundPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG COMBUSTION SOUND PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngDamagePercent Simvar
-// args contain optional index
-func SimVarGeneralEngDamagePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngDamagePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG DAMAGE PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngOilTemperature Simvar
-// args contain optional index
-func SimVarGeneralEngOilTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngOilTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG OIL TEMPERATURE:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngFailed Simvar
-// args contain optional index
-func SimVarGeneralEngFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FAILED:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngGeneratorSwitch Simvar
-// args contain optional index
-func SimVarGeneralEngGeneratorSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngGeneratorSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG GENERATOR SWITCH:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngGeneratorActive Simvar
-// args contain optional index
-func SimVarGeneralEngGeneratorActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngGeneratorActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG GENERATOR ACTIVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngAntiIcePosition Simvar
-// args contain optional index
-func SimVarGeneralEngAntiIcePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngAntiIcePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG ANTI ICE POSITION:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngFuelValve Simvar
-// args contain optional index
-func SimVarGeneralEngFuelValve(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFuelValve(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FUEL VALVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngFuelPressure Simvar
-// args contain optional index
-func SimVarGeneralEngFuelPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFuelPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Psi")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FUEL PRESSURE:index",
-		Units:    "Psi",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGeneralEngElapsedTime Simvar
-// args contain optional index
-func SimVarGeneralEngElapsedTime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngElapsedTime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Hours")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG ELAPSED TIME:index",
-		Units:    "Hours",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngCowlFlapPosition Simvar
-// args contain optional index
-func SimVarRecipEngCowlFlapPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngCowlFlapPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG COWL FLAP POSITION:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngPrimer Simvar
-// args contain optional index
-func SimVarRecipEngPrimer(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngPrimer(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG PRIMER:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngManifoldPressure Simvar
-// args contain optional index
-func SimVarRecipEngManifoldPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngManifoldPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Psi")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG MANIFOLD PRESSURE:index",
-		Units:    "Psi",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngAlternateAirPosition Simvar
-// args contain optional index
-func SimVarRecipEngAlternateAirPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngAlternateAirPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG ALTERNATE AIR POSITION:index",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngCoolantReservoirPercent Simvar
-// args contain optional index
-func SimVarRecipEngCoolantReservoirPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngCoolantReservoirPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG COOLANT RESERVOIR PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngLeftMagneto Simvar
-// args contain optional index
-func SimVarRecipEngLeftMagneto(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngLeftMagneto(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG LEFT MAGNETO:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngRightMagneto Simvar
-// args contain optional index
-func SimVarRecipEngRightMagneto(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngRightMagneto(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG RIGHT MAGNETO:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngBrakePower Simvar
-// args contain optional index
-func SimVarRecipEngBrakePower(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngBrakePower(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "ft lb per second")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG BRAKE POWER:index",
-		Units:    "ft lb per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngStarterTorque Simvar
-// args contain optional index
-func SimVarRecipEngStarterTorque(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngStarterTorque(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Foot pound")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG STARTER TORQUE:index",
-		Units:    "Foot pound",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngTurbochargerFailed Simvar
-// args contain optional index
-func SimVarRecipEngTurbochargerFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngTurbochargerFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG TURBOCHARGER FAILED:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngEmergencyBoostActive Simvar
-// args contain optional index
-func SimVarRecipEngEmergencyBoostActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngEmergencyBoostActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG EMERGENCY BOOST ACTIVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngEmergencyBoostElapsedTime Simvar
-// args contain optional index
-func SimVarRecipEngEmergencyBoostElapsedTime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngEmergencyBoostElapsedTime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Hours")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG EMERGENCY BOOST ELAPSED TIME:index",
-		Units:    "Hours",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngWastegatePosition Simvar
-// args contain optional index
-func SimVarRecipEngWastegatePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngWastegatePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG WASTEGATE POSITION:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngTurbineInletTemperature Simvar
-// args contain optional index
-func SimVarRecipEngTurbineInletTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngTurbineInletTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG TURBINE INLET TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngCylinderHeadTemperature Simvar
-// args contain optional index
-func SimVarRecipEngCylinderHeadTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngCylinderHeadTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG CYLINDER HEAD TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngRadiatorTemperature Simvar
-// args contain optional index
-func SimVarRecipEngRadiatorTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngRadiatorTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG RADIATOR TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngFuelAvailable Simvar
-// args contain optional index
-func SimVarRecipEngFuelAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngFuelAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG FUEL AVAILABLE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngFuelFlow Simvar
-// args contain optional index
-func SimVarRecipEngFuelFlow(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngFuelFlow(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG FUEL FLOW:index",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngFuelTankSelector Simvar
-// args contain optional index
-func SimVarRecipEngFuelTankSelector(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngFuelTankSelector(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG FUEL TANK SELECTOR:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipEngFuelTanksUsed Simvar
-// args contain optional index
-func SimVarRecipEngFuelTanksUsed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngFuelTanksUsed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG FUEL TANKS USED:index",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipEngFuelNumberTanksUsed Simvar
-// args contain optional index
-func SimVarRecipEngFuelNumberTanksUsed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipEngFuelNumberTanksUsed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP ENG FUEL NUMBER TANKS USED:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRecipCarburetorTemperature Simvar
-// args contain optional index
-func SimVarRecipCarburetorTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipCarburetorTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP CARBURETOR TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRecipMixtureRatio Simvar
-// args contain optional index
-func SimVarRecipMixtureRatio(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRecipMixtureRatio(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Ratio")
 	return SimVar{
 		Index:    index,
 		Name:     "RECIP MIXTURE RATIO:index",
-		Units:    "Ratio",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngN1 Simvar
-func SimVarTurbEngN1(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarTurbEngN1(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG N1:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngN2 Simvar
-func SimVarTurbEngN2(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarTurbEngN2(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG N2:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngCorrectedN1 Simvar
-func SimVarTurbEngCorrectedN1(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarTurbEngCorrectedN1(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG CORRECTED N1:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngCorrectedN2 Simvar
-func SimVarTurbEngCorrectedN2(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarTurbEngCorrectedN2(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG CORRECTED N2:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngCorrectedFf Simvar
-// args contain optional index
-func SimVarTurbEngCorrectedFf(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngCorrectedFf(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG CORRECTED FF:index",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngMaxTorquePercent Simvar
-// args contain optional index
-func SimVarTurbEngMaxTorquePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngMaxTorquePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG MAX TORQUE PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngPressureRatio Simvar
-// args contain optional index
-func SimVarTurbEngPressureRatio(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngPressureRatio(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Ratio")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG PRESSURE RATIO:index",
-		Units:    "Ratio",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngItt Simvar
-// args contain optional index
-func SimVarTurbEngItt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngItt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG ITT:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurbEngAfterburner Simvar
-// args contain optional index
-func SimVarTurbEngAfterburner(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngAfterburner(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG AFTERBURNER:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngJetThrust Simvar
-// args contain optional index
-func SimVarTurbEngJetThrust(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngJetThrust(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG JET THRUST:index",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngBleedAir Simvar
-// args contain optional index
-func SimVarTurbEngBleedAir(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngBleedAir(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Psi")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG BLEED AIR:index",
-		Units:    "Psi",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngTankSelector Simvar
-// args contain optional index
-func SimVarTurbEngTankSelector(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngTankSelector(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG TANK SELECTOR:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngTanksUsed Simvar
-// args contain optional index
-func SimVarTurbEngTanksUsed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngTanksUsed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG TANKS USED:index",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngNumTanksUsed Simvar
-// args contain optional index
-func SimVarTurbEngNumTanksUsed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngNumTanksUsed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG NUM TANKS USED:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngFuelFlowPph Simvar
-// args contain optional index
-func SimVarTurbEngFuelFlowPph(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngFuelFlowPph(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG FUEL FLOW PPH:index",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngFuelAvailable Simvar
-// args contain optional index
-func SimVarTurbEngFuelAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngFuelAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG FUEL AVAILABLE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngReverseNozzlePercent Simvar
-// args contain optional index
-func SimVarTurbEngReverseNozzlePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngReverseNozzlePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG REVERSE NOZZLE PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngVibration Simvar
-// args contain optional index
-func SimVarTurbEngVibration(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngVibration(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG VIBRATION:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngFailed Simvar
-// args contain optional index
-func SimVarEngFailed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngFailed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG FAILED:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngRpmAnimationPercent Simvar
-// args contain optional index
-func SimVarEngRpmAnimationPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngRpmAnimationPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG RPM ANIMATION PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngOnFire Simvar
-// args contain optional index
-func SimVarEngOnFire(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngOnFire(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG ON FIRE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarEngFuelFlowBugPosition Simvar
-// args contain optional index
-func SimVarEngFuelFlowBugPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngFuelFlowBugPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG FUEL FLOW BUG POSITION:index",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropRpm Simvar
-// args contain optional index
-func SimVarPropRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP RPM:index",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPropMaxRpmPercent Simvar
-// args contain optional index
-func SimVarPropMaxRpmPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropMaxRpmPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP MAX RPM PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropThrust Simvar
-// args contain optional index
-func SimVarPropThrust(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropThrust(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP THRUST:index",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropBeta Simvar
-// args contain optional index
-func SimVarPropBeta(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropBeta(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP BETA:index",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropFeatheringInhibit Simvar
-// args contain optional index
-func SimVarPropFeatheringInhibit(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropFeatheringInhibit(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP FEATHERING INHIBIT:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropFeathered Simvar
-// args contain optional index
-func SimVarPropFeathered(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropFeathered(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP FEATHERED:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropSyncDeltaLever Simvar
-// args contain optional index
-func SimVarPropSyncDeltaLever(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropSyncDeltaLever(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP SYNC DELTA LEVER:index",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropAutoFeatherArmed Simvar
-// args contain optional index
-func SimVarPropAutoFeatherArmed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropAutoFeatherArmed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP AUTO FEATHER ARMED:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropFeatherSwitch Simvar
-// args contain optional index
-func SimVarPropFeatherSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropFeatherSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP FEATHER SWITCH:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPanelAutoFeatherSwitch Simvar
-// args contain optional index
-func SimVarPanelAutoFeatherSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPanelAutoFeatherSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PANEL AUTO FEATHER SWITCH:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropSyncActive Simvar
-// args contain optional index
-func SimVarPropSyncActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropSyncActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP SYNC ACTIVE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropDeiceSwitch Simvar
-// args contain optional index
-func SimVarPropDeiceSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropDeiceSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP DEICE SWITCH:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngCombustion Simvar
-// args contain optional index
-func SimVarEngCombustion(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngCombustion(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG COMBUSTION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngN1Rpm Simvar
-func SimVarEngN1Rpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarEngN1Rpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG N1 RPM:index",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngN2Rpm Simvar
-func SimVarEngN2Rpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarEngN2Rpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG N2 RPM:index",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngFuelFlowPph Simvar
-// args contain optional index
-func SimVarEngFuelFlowPph(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngFuelFlowPph(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG FUEL FLOW PPH:index",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngTorque Simvar
-// args contain optional index
-func SimVarEngTorque(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngTorque(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Foot pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG TORQUE:index",
-		Units:    "Foot pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngAntiIce Simvar
-// args contain optional index
-func SimVarEngAntiIce(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngAntiIce(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG ANTI ICE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngPressureRatio Simvar
-// args contain optional index
-func SimVarEngPressureRatio(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngPressureRatio(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Ratio (0-16384)")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG PRESSURE RATIO:index",
-		Units:    "Ratio (0-16384)",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngExhaustGasTemperature Simvar
-// args contain optional index
-func SimVarEngExhaustGasTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngExhaustGasTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG EXHAUST GAS TEMPERATURE:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngExhaustGasTemperatureGes Simvar
-// args contain optional index
-func SimVarEngExhaustGasTemperatureGes(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngExhaustGasTemperatureGes(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG EXHAUST GAS TEMPERATURE GES:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngCylinderHeadTemperature Simvar
-// args contain optional index
-func SimVarEngCylinderHeadTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngCylinderHeadTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG CYLINDER HEAD TEMPERATURE:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngOilTemperature Simvar
-// args contain optional index
-func SimVarEngOilTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngOilTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG OIL TEMPERATURE:index",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngOilPressure Simvar
-// args contain optional index
-func SimVarEngOilPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngOilPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "pound-force per square inch")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG OIL PRESSURE:index",
-		Units:    "pound-force per square inch",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngOilQuantity Simvar
-// args contain optional index
-func SimVarEngOilQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngOilQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG OIL QUANTITY:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngHydraulicPressure Simvar
-// args contain optional index
-func SimVarEngHydraulicPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngHydraulicPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "pound-force per square inch")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG HYDRAULIC PRESSURE:index",
-		Units:    "pound-force per square inch",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngHydraulicQuantity Simvar
-// args contain optional index
-func SimVarEngHydraulicQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngHydraulicQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG HYDRAULIC QUANTITY:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngManifoldPressure Simvar
-// args contain optional index
-func SimVarEngManifoldPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngManifoldPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "inHg")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG MANIFOLD PRESSURE:index",
-		Units:    "inHg",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngVibration Simvar
-// args contain optional index
-func SimVarEngVibration(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngVibration(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG VIBRATION:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngRpmScaler Simvar
-// args contain optional index
-func SimVarEngRpmScaler(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngRpmScaler(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG RPM SCALER:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngTurbineTemperature Simvar
-// args contain optional index
-func SimVarEngTurbineTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngTurbineTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG TURBINE TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngTorquePercent Simvar
-// args contain optional index
-func SimVarEngTorquePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngTorquePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG TORQUE PERCENT:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngFuelPressure Simvar
-// args contain optional index
-func SimVarEngFuelPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngFuelPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "PSI")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG FUEL PRESSURE:index",
-		Units:    "PSI",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngElectricalLoad Simvar
-// args contain optional index
-func SimVarEngElectricalLoad(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngElectricalLoad(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG ELECTRICAL LOAD:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngTransmissionPressure Simvar
-// args contain optional index
-func SimVarEngTransmissionPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngTransmissionPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "PSI")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG TRANSMISSION PRESSURE:index",
-		Units:    "PSI",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngTransmissionTemperature Simvar
-// args contain optional index
-func SimVarEngTransmissionTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngTransmissionTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG TRANSMISSION TEMPERATURE:index",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngRotorRpm Simvar
-// args contain optional index
-func SimVarEngRotorRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngRotorRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG ROTOR RPM:index",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngMaxRpm Simvar
-// args contain optional index
-func SimVarEngMaxRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngMaxRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "ENG MAX RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngStarterActive Simvar
-// args contain optional index
-func SimVarGeneralEngStarterActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngStarterActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG STARTER ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGeneralEngFuelUsedSinceStart Simvar
-// args contain optional index
-func SimVarGeneralEngFuelUsedSinceStart(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGeneralEngFuelUsedSinceStart(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "GENERAL ENG FUEL USED SINCE START",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngPrimaryNozzlePercent Simvar
-// args contain optional index
-func SimVarTurbEngPrimaryNozzlePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngPrimaryNozzlePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG PRIMARY NOZZLE PERCENT:index",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngIgnitionSwitch Simvar
-// args contain optional index
-func SimVarTurbEngIgnitionSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngIgnitionSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG IGNITION SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurbEngMasterStarterSwitch Simvar
-// args contain optional index
-func SimVarTurbEngMasterStarterSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurbEngMasterStarterSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TURB ENG MASTER STARTER SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankCenterLevel Simvar
-// args contain optional index
-func SimVarFuelTankCenterLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankCenterLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankCenter2Level Simvar
-func SimVarFuelTankCenter2Level(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter2Level(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER2 LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankCenter3Level Simvar
-func SimVarFuelTankCenter3Level(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter3Level(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER3 LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftMainLevel Simvar
-// args contain optional index
-func SimVarFuelTankLeftMainLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftMainLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftAuxLevel Simvar
-// args contain optional index
-func SimVarFuelTankLeftAuxLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftAuxLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT AUX LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftTipLevel Simvar
-// args contain optional index
-func SimVarFuelTankLeftTipLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftTipLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT TIP LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightMainLevel Simvar
-// args contain optional index
-func SimVarFuelTankRightMainLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightMainLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightAuxLevel Simvar
-// args contain optional index
-func SimVarFuelTankRightAuxLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightAuxLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightTipLevel Simvar
-// args contain optional index
-func SimVarFuelTankRightTipLevel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightTipLevel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankExternal1Level Simvar
-func SimVarFuelTankExternal1Level(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal1Level(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankExternal2Level Simvar
-func SimVarFuelTankExternal2Level(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal2Level(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 LEVEL",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankCenterCapacity Simvar
-// args contain optional index
-func SimVarFuelTankCenterCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankCenterCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankCenter2Capacity Simvar
-func SimVarFuelTankCenter2Capacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter2Capacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER2 CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankCenter3Capacity Simvar
-func SimVarFuelTankCenter3Capacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter3Capacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER3 CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankLeftMainCapacity Simvar
-// args contain optional index
-func SimVarFuelTankLeftMainCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftMainCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankLeftAuxCapacity Simvar
-// args contain optional index
-func SimVarFuelTankLeftAuxCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftAuxCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT AUX CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankLeftTipCapacity Simvar
-// args contain optional index
-func SimVarFuelTankLeftTipCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftTipCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT TIP CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankRightMainCapacity Simvar
-// args contain optional index
-func SimVarFuelTankRightMainCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightMainCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankRightAuxCapacity Simvar
-// args contain optional index
-func SimVarFuelTankRightAuxCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightAuxCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankRightTipCapacity Simvar
-// args contain optional index
-func SimVarFuelTankRightTipCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightTipCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankExternal1Capacity Simvar
-func SimVarFuelTankExternal1Capacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal1Capacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankExternal2Capacity Simvar
-func SimVarFuelTankExternal2Capacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal2Capacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelLeftCapacity Simvar
-// args contain optional index
-func SimVarFuelLeftCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelLeftCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL LEFT CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelRightCapacity Simvar
-// args contain optional index
-func SimVarFuelRightCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelRightCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL RIGHT CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankCenterQuantity Simvar
-// args contain optional index
-func SimVarFuelTankCenterQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankCenterQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankCenter2Quantity Simvar
-func SimVarFuelTankCenter2Quantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter2Quantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER2 QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankCenter3Quantity Simvar
-func SimVarFuelTankCenter3Quantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankCenter3Quantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK CENTER3 QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftMainQuantity Simvar
-// args contain optional index
-func SimVarFuelTankLeftMainQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftMainQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT MAIN QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftAuxQuantity Simvar
-// args contain optional index
-func SimVarFuelTankLeftAuxQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftAuxQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT AUX QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankLeftTipQuantity Simvar
-// args contain optional index
-func SimVarFuelTankLeftTipQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankLeftTipQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK LEFT TIP QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightMainQuantity Simvar
-// args contain optional index
-func SimVarFuelTankRightMainQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightMainQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT MAIN QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightAuxQuantity Simvar
-// args contain optional index
-func SimVarFuelTankRightAuxQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightAuxQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT AUX QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankRightTipQuantity Simvar
-// args contain optional index
-func SimVarFuelTankRightTipQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankRightTipQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK RIGHT TIP QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankExternal1Quantity Simvar
-func SimVarFuelTankExternal1Quantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal1Quantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL1 QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelTankExternal2Quantity Simvar
-func SimVarFuelTankExternal2Quantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarFuelTankExternal2Quantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK EXTERNAL2 QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFuelLeftQuantity Simvar
-// args contain optional index
-func SimVarFuelLeftQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelLeftQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL LEFT QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelRightQuantity Simvar
-// args contain optional index
-func SimVarFuelRightQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelRightQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL RIGHT QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTotalQuantity Simvar
-// args contain optional index
-func SimVarFuelTotalQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTotalQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TOTAL QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelWeightPerGallon Simvar
-// args contain optional index
-func SimVarFuelWeightPerGallon(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelWeightPerGallon(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL WEIGHT PER GALLON",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTankSelector Simvar
-// args contain optional index
-func SimVarFuelTankSelector(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTankSelector(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TANK SELECTOR:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelCrossFeed Simvar
-// args contain optional index
-func SimVarFuelCrossFeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelCrossFeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL CROSS FEED",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTotalCapacity Simvar
-// args contain optional index
-func SimVarFuelTotalCapacity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTotalCapacity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TOTAL CAPACITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelSelectedQuantityPercent Simvar
-// args contain optional index
-func SimVarFuelSelectedQuantityPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelSelectedQuantityPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL SELECTED QUANTITY PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelSelectedQuantity Simvar
-// args contain optional index
-func SimVarFuelSelectedQuantity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelSelectedQuantity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gallons")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL SELECTED QUANTITY",
-		Units:    "Gallons",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelTotalQuantityWeight Simvar
-// args contain optional index
-func SimVarFuelTotalQuantityWeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelTotalQuantityWeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL TOTAL QUANTITY WEIGHT",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNumFuelSelectors Simvar
-// args contain optional index
-func SimVarNumFuelSelectors(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNumFuelSelectors(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NUM FUEL SELECTORS",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarUnlimitedFuel Simvar
-// args contain optional index
-func SimVarUnlimitedFuel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarUnlimitedFuel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "UNLIMITED FUEL",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEstimatedFuelFlow Simvar
-// args contain optional index
-func SimVarEstimatedFuelFlow(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEstimatedFuelFlow(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per hour")
 	return SimVar{
 		Index:    index,
 		Name:     "ESTIMATED FUEL FLOW",
-		Units:    "Pounds per hour",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightStrobe Simvar
-// args contain optional index
-func SimVarLightStrobe(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightStrobe(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT STROBE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightPanel Simvar
-// args contain optional index
-func SimVarLightPanel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightPanel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT PANEL",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightLanding Simvar
-// args contain optional index
-func SimVarLightLanding(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightLanding(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT LANDING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightTaxi Simvar
-// args contain optional index
-func SimVarLightTaxi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightTaxi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT TAXI",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightBeacon Simvar
-// args contain optional index
-func SimVarLightBeacon(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightBeacon(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT BEACON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightNav Simvar
-// args contain optional index
-func SimVarLightNav(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightNav(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT NAV",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightLogo Simvar
-// args contain optional index
-func SimVarLightLogo(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightLogo(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT LOGO",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightWing Simvar
-// args contain optional index
-func SimVarLightWing(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightWing(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT WING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightRecognition Simvar
-// args contain optional index
-func SimVarLightRecognition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightRecognition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT RECOGNITION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLightCabin Simvar
-// args contain optional index
-func SimVarLightCabin(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLightCabin(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "LIGHT CABIN",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGroundVelocity Simvar
-// args contain optional index
-func SimVarGroundVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGroundVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "GROUND VELOCITY",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWorldVelocity Simvar
-// args contain optional index
-func SimVarTotalWorldVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWorldVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WORLD VELOCITY",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarVelocityBodyZ Simvar
-// args contain optional index
-func SimVarVelocityBodyZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityBodyZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY BODY Z",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarVelocityBodyX Simvar
-// args contain optional index
-func SimVarVelocityBodyX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityBodyX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY BODY X",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarVelocityBodyY Simvar
-// args contain optional index
-func SimVarVelocityBodyY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityBodyY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY BODY Y",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarVelocityWorldZ Simvar
-// args contain optional index
-func SimVarVelocityWorldZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityWorldZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY WORLD Z",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarVelocityWorldX Simvar
-// args contain optional index
-func SimVarVelocityWorldX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityWorldX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY WORLD X",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarVelocityWorldY Simvar
-// args contain optional index
-func SimVarVelocityWorldY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVelocityWorldY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VELOCITY WORLD Y",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationWorldX Simvar
-// args contain optional index
-func SimVarAccelerationWorldX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationWorldX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION WORLD X",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationWorldY Simvar
-// args contain optional index
-func SimVarAccelerationWorldY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationWorldY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION WORLD Y",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationWorldZ Simvar
-// args contain optional index
-func SimVarAccelerationWorldZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationWorldZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION WORLD Z",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationBodyX Simvar
-// args contain optional index
-func SimVarAccelerationBodyX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationBodyX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION BODY X",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationBodyY Simvar
-// args contain optional index
-func SimVarAccelerationBodyY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationBodyY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION BODY Y",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAccelerationBodyZ Simvar
-// args contain optional index
-func SimVarAccelerationBodyZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAccelerationBodyZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second squared")
 	return SimVar{
 		Index:    index,
 		Name:     "ACCELERATION BODY Z",
-		Units:    "Feet per second squared",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRotationVelocityBodyX Simvar
-// args contain optional index
-func SimVarRotationVelocityBodyX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotationVelocityBodyX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTATION VELOCITY BODY X",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRotationVelocityBodyY Simvar
-// args contain optional index
-func SimVarRotationVelocityBodyY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotationVelocityBodyY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTATION VELOCITY BODY Y",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRotationVelocityBodyZ Simvar
-// args contain optional index
-func SimVarRotationVelocityBodyZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotationVelocityBodyZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTATION VELOCITY BODY Z",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRelativeWindVelocityBodyX Simvar
-// args contain optional index
-func SimVarRelativeWindVelocityBodyX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRelativeWindVelocityBodyX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY X",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRelativeWindVelocityBodyY Simvar
-// args contain optional index
-func SimVarRelativeWindVelocityBodyY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRelativeWindVelocityBodyY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY Y",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRelativeWindVelocityBodyZ Simvar
-// args contain optional index
-func SimVarRelativeWindVelocityBodyZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRelativeWindVelocityBodyZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "RELATIVE WIND VELOCITY BODY Z",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPlaneAltAboveGround Simvar
-// args contain optional index
-func SimVarPlaneAltAboveGround(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneAltAboveGround(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE ALT ABOVE GROUND",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneLatitude Simvar
-// args contain optional index
-func SimVarPlaneLatitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneLatitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE LATITUDE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneLongitude Simvar
-// args contain optional index
-func SimVarPlaneLongitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneLongitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE LONGITUDE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneAltitude Simvar
-// args contain optional index
-func SimVarPlaneAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE ALTITUDE",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlanePitchDegrees Simvar
-// args contain optional index
-func SimVarPlanePitchDegrees(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlanePitchDegrees(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE PITCH DEGREES",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneBankDegrees Simvar
-// args contain optional index
-func SimVarPlaneBankDegrees(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneBankDegrees(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE BANK DEGREES",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneHeadingDegreesTrue Simvar
-// args contain optional index
-func SimVarPlaneHeadingDegreesTrue(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneHeadingDegreesTrue(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE HEADING DEGREES TRUE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneHeadingDegreesMagnetic Simvar
-// args contain optional index
-func SimVarPlaneHeadingDegreesMagnetic(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneHeadingDegreesMagnetic(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE HEADING DEGREES MAGNETIC",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarMagvar Simvar
-// args contain optional index
-func SimVarMagvar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMagvar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "MAGVAR",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGroundAltitude Simvar
-// args contain optional index
-func SimVarGroundAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGroundAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GROUND ALTITUDE",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSurfaceType Simvar
-// args contain optional index
-func SimVarSurfaceType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSurfaceType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "SURFACE TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSimOnGround Simvar
-// args contain optional index
-func SimVarSimOnGround(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSimOnGround(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SIM ON GROUND",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIncidenceAlpha Simvar
-// args contain optional index
-func SimVarIncidenceAlpha(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIncidenceAlpha(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "INCIDENCE ALPHA",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIncidenceBeta Simvar
-// args contain optional index
-func SimVarIncidenceBeta(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIncidenceBeta(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "INCIDENCE BETA",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAirspeedTrue Simvar
-// args contain optional index
-func SimVarAirspeedTrue(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedTrue(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED TRUE",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAirspeedIndicated Simvar
-// args contain optional index
-func SimVarAirspeedIndicated(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedIndicated(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED INDICATED",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAirspeedTrueCalibrate Simvar
-// args contain optional index
-func SimVarAirspeedTrueCalibrate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedTrueCalibrate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED TRUE CALIBRATE",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAirspeedBarberPole Simvar
-// args contain optional index
-func SimVarAirspeedBarberPole(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedBarberPole(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED BARBER POLE",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAirspeedMach Simvar
-// args contain optional index
-func SimVarAirspeedMach(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedMach(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mach")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED MACH",
-		Units:    "Mach",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarVerticalSpeed Simvar
-// args contain optional index
-func SimVarVerticalSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVerticalSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VERTICAL SPEED",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarMachMaxOperate Simvar
-// args contain optional index
-func SimVarMachMaxOperate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMachMaxOperate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mach")
 	return SimVar{
 		Index:    index,
 		Name:     "MACH MAX OPERATE",
-		Units:    "Mach",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStallWarning Simvar
-// args contain optional index
-func SimVarStallWarning(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStallWarning(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "STALL WARNING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarOverspeedWarning Simvar
-// args contain optional index
-func SimVarOverspeedWarning(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarOverspeedWarning(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "OVERSPEED WARNING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBarberPoleMach Simvar
-// args contain optional index
-func SimVarBarberPoleMach(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBarberPoleMach(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mach")
 	return SimVar{
 		Index:    index,
 		Name:     "BARBER POLE MACH",
-		Units:    "Mach",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIndicatedAltitude Simvar
-// args contain optional index
-func SimVarIndicatedAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIndicatedAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "INDICATED ALTITUDE",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarKohlsmanSettingMb Simvar
-// args contain optional index
-func SimVarKohlsmanSettingMb(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarKohlsmanSettingMb(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Millibars")
 	return SimVar{
 		Index:    index,
 		Name:     "KOHLSMAN SETTING MB",
-		Units:    "Millibars",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarKohlsmanSettingHg Simvar
-// args contain optional index
-func SimVarKohlsmanSettingHg(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarKohlsmanSettingHg(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "inHg")
 	return SimVar{
 		Index:    index,
 		Name:     "KOHLSMAN SETTING HG",
-		Units:    "inHg",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAttitudeIndicatorPitchDegrees Simvar
-// args contain optional index
-func SimVarAttitudeIndicatorPitchDegrees(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAttitudeIndicatorPitchDegrees(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ATTITUDE INDICATOR PITCH DEGREES",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAttitudeIndicatorBankDegrees Simvar
-// args contain optional index
-func SimVarAttitudeIndicatorBankDegrees(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAttitudeIndicatorBankDegrees(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ATTITUDE INDICATOR BANK DEGREES",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAttitudeBarsPosition Simvar
-// args contain optional index
-func SimVarAttitudeBarsPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAttitudeBarsPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ATTITUDE BARS POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAttitudeCage Simvar
-// args contain optional index
-func SimVarAttitudeCage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAttitudeCage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ATTITUDE CAGE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWiskeyCompassIndicationDegrees Simvar
-// args contain optional index
-func SimVarWiskeyCompassIndicationDegrees(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWiskeyCompassIndicationDegrees(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "WISKEY COMPASS INDICATION DEGREES",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPlaneHeadingDegreesGyro Simvar
-// args contain optional index
-func SimVarPlaneHeadingDegreesGyro(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPlaneHeadingDegreesGyro(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PLANE HEADING DEGREES GYRO",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarHeadingIndicator Simvar
-// args contain optional index
-func SimVarHeadingIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHeadingIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "HEADING INDICATOR",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGyroDriftError Simvar
-// args contain optional index
-func SimVarGyroDriftError(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGyroDriftError(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GYRO DRIFT ERROR",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDeltaHeadingRate Simvar
-// args contain optional index
-func SimVarDeltaHeadingRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDeltaHeadingRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians per second")
 	return SimVar{
 		Index:    index,
 		Name:     "DELTA HEADING RATE",
-		Units:    "Radians per second",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTurnCoordinatorBall Simvar
-// args contain optional index
-func SimVarTurnCoordinatorBall(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurnCoordinatorBall(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "TURN COORDINATOR BALL",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAngleOfAttackIndicator Simvar
-// args contain optional index
-func SimVarAngleOfAttackIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAngleOfAttackIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ANGLE OF ATTACK INDICATOR",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRadioHeight Simvar
-// args contain optional index
-func SimVarRadioHeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRadioHeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "RADIO HEIGHT",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPartialPanelAdf Simvar
-// args contain optional index
-func SimVarPartialPanelAdf(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelAdf(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL ADF",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelAirspeed Simvar
-// args contain optional index
-func SimVarPartialPanelAirspeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelAirspeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL AIRSPEED",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelAltimeter Simvar
-// args contain optional index
-func SimVarPartialPanelAltimeter(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelAltimeter(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL ALTIMETER",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelAttitude Simvar
-// args contain optional index
-func SimVarPartialPanelAttitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelAttitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL ATTITUDE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelComm Simvar
-// args contain optional index
-func SimVarPartialPanelComm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelComm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL COMM",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelCompass Simvar
-// args contain optional index
-func SimVarPartialPanelCompass(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelCompass(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL COMPASS",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelElectrical Simvar
-// args contain optional index
-func SimVarPartialPanelElectrical(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelElectrical(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL ELECTRICAL",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelAvionics Simvar
-// args contain optional index
-func SimVarPartialPanelAvionics(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelAvionics(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL AVIONICS",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPartialPanelEngine Simvar
-// args contain optional index
-func SimVarPartialPanelEngine(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelEngine(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL ENGINE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelFuelIndicator Simvar
-// args contain optional index
-func SimVarPartialPanelFuelIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelFuelIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL FUEL INDICATOR",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPartialPanelHeading Simvar
-// args contain optional index
-func SimVarPartialPanelHeading(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelHeading(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL HEADING",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelVerticalVelocity Simvar
-// args contain optional index
-func SimVarPartialPanelVerticalVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelVerticalVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL VERTICAL VELOCITY",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelTransponder Simvar
-// args contain optional index
-func SimVarPartialPanelTransponder(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelTransponder(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL TRANSPONDER",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelNav Simvar
-// args contain optional index
-func SimVarPartialPanelNav(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelNav(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL NAV",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelPitot Simvar
-// args contain optional index
-func SimVarPartialPanelPitot(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelPitot(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL PITOT",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPartialPanelTurnCoordinator Simvar
-// args contain optional index
-func SimVarPartialPanelTurnCoordinator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelTurnCoordinator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL TURN COORDINATOR",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPartialPanelVacuum Simvar
-// args contain optional index
-func SimVarPartialPanelVacuum(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPartialPanelVacuum(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PARTIAL PANEL VACUUM",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarMaxGForce Simvar
-// args contain optional index
-func SimVarMaxGForce(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMaxGForce(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gforce")
 	return SimVar{
 		Index:    index,
 		Name:     "MAX G FORCE",
-		Units:    "Gforce",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMinGForce Simvar
-// args contain optional index
-func SimVarMinGForce(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMinGForce(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Gforce")
 	return SimVar{
 		Index:    index,
 		Name:     "MIN G FORCE",
-		Units:    "Gforce",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSuctionPressure Simvar
-// args contain optional index
-func SimVarSuctionPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSuctionPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "inHg")
 	return SimVar{
 		Index:    index,
 		Name:     "SUCTION PRESSURE",
-		Units:    "inHg",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAvionicsMasterSwitch Simvar
-// args contain optional index
-func SimVarAvionicsMasterSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAvionicsMasterSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AVIONICS MASTER SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavSound Simvar
-// args contain optional index
-func SimVarNavSound(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavSound(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV SOUND:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDmeSound Simvar
-// args contain optional index
-func SimVarDmeSound(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDmeSound(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "DME SOUND",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfSound Simvar
-// args contain optional index
-func SimVarAdfSound(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfSound(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF SOUND:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMarkerSound Simvar
-// args contain optional index
-func SimVarMarkerSound(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMarkerSound(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "MARKER SOUND",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComTransmit Simvar
-// args contain optional index
-func SimVarComTransmit(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComTransmit(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "COM TRANSMIT:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComRecieveAll Simvar
-// args contain optional index
-func SimVarComRecieveAll(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComRecieveAll(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "COM RECIEVE ALL",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComActiveFrequency Simvar
-// args contain optional index
-func SimVarComActiveFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComActiveFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Frequency BCD16")
 	return SimVar{
 		Index:    index,
 		Name:     "COM ACTIVE FREQUENCY:index",
-		Units:    "Frequency BCD16",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComStandbyFrequency Simvar
-// args contain optional index
-func SimVarComStandbyFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComStandbyFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Frequency BCD16")
 	return SimVar{
 		Index:    index,
 		Name:     "COM STANDBY FREQUENCY:index",
-		Units:    "Frequency BCD16",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComStatus Simvar
-// args contain optional index
-func SimVarComStatus(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComStatus(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "COM STATUS:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavAvailable Simvar
-// args contain optional index
-func SimVarNavAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV AVAILABLE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavActiveFrequency Simvar
-// args contain optional index
-func SimVarNavActiveFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavActiveFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "MHz")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV ACTIVE FREQUENCY:index",
-		Units:    "MHz",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavStandbyFrequency Simvar
-// args contain optional index
-func SimVarNavStandbyFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavStandbyFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "MHz")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV STANDBY FREQUENCY:index",
-		Units:    "MHz",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavSignal Simvar
-// args contain optional index
-func SimVarNavSignal(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavSignal(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV SIGNAL:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavHasNav Simvar
-// args contain optional index
-func SimVarNavHasNav(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavHasNav(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV HAS NAV:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavHasLocalizer Simvar
-// args contain optional index
-func SimVarNavHasLocalizer(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavHasLocalizer(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV HAS LOCALIZER:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavHasDme Simvar
-// args contain optional index
-func SimVarNavHasDme(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavHasDme(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV HAS DME:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavHasGlideSlope Simvar
-// args contain optional index
-func SimVarNavHasGlideSlope(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavHasGlideSlope(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV HAS GLIDE SLOPE:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavBackCourseFlags Simvar
-// args contain optional index
-func SimVarNavBackCourseFlags(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavBackCourseFlags(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV BACK COURSE FLAGS:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavMagvar Simvar
-// args contain optional index
-func SimVarNavMagvar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavMagvar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV MAGVAR:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavRadial Simvar
-// args contain optional index
-func SimVarNavRadial(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavRadial(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV RADIAL:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavRadialError Simvar
-// args contain optional index
-func SimVarNavRadialError(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavRadialError(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV RADIAL ERROR:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavLocalizer Simvar
-// args contain optional index
-func SimVarNavLocalizer(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavLocalizer(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV LOCALIZER:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGlideSlopeError Simvar
-// args contain optional index
-func SimVarNavGlideSlopeError(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavGlideSlopeError(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GLIDE SLOPE ERROR:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavCdi Simvar
-// args contain optional index
-func SimVarNavCdi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavCdi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV CDI:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGsi Simvar
-// args contain optional index
-func SimVarNavGsi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavGsi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GSI:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavTofrom Simvar
-// args contain optional index
-func SimVarNavTofrom(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavTofrom(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV TOFROM:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGsFlag Simvar
-// args contain optional index
-func SimVarNavGsFlag(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavGsFlag(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GS FLAG:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavObs Simvar
-// args contain optional index
-func SimVarNavObs(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavObs(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV OBS:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavDme Simvar
-// args contain optional index
-func SimVarNavDme(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavDme(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Nautical miles")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV DME:index",
-		Units:    "Nautical miles",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavDmespeed Simvar
-// args contain optional index
-func SimVarNavDmespeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavDmespeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV DMESPEED:index",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfActiveFrequency Simvar
-// args contain optional index
-func SimVarAdfActiveFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfActiveFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Frequency ADF BCD32")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF ACTIVE FREQUENCY:index",
-		Units:    "Frequency ADF BCD32",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfStandbyFrequency Simvar
-// args contain optional index
-func SimVarAdfStandbyFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfStandbyFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Hz")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF STANDBY FREQUENCY:index",
-		Units:    "Hz",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfRadial Simvar
-// args contain optional index
-func SimVarAdfRadial(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfRadial(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF RADIAL:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfSignal Simvar
-// args contain optional index
-func SimVarAdfSignal(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfSignal(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF SIGNAL:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTransponderCode Simvar
-// args contain optional index
-func SimVarTransponderCode(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTransponderCode(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "BCO16")
 	return SimVar{
 		Index:    index,
 		Name:     "TRANSPONDER CODE:index",
-		Units:    "BCO16",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMarkerBeaconState Simvar
-// args contain optional index
-func SimVarMarkerBeaconState(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMarkerBeaconState(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "MARKER BEACON STATE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarInnerMarker Simvar
-// args contain optional index
-func SimVarInnerMarker(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarInnerMarker(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "INNER MARKER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarMiddleMarker Simvar
-// args contain optional index
-func SimVarMiddleMarker(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMiddleMarker(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "MIDDLE MARKER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarOuterMarker Simvar
-// args contain optional index
-func SimVarOuterMarker(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarOuterMarker(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "OUTER MARKER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarNavRawGlideSlope Simvar
-// args contain optional index
-func SimVarNavRawGlideSlope(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavRawGlideSlope(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV RAW GLIDE SLOPE:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfCard Simvar
-// args contain optional index
-func SimVarAdfCard(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfCard(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF CARD",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiCdiNeedle Simvar
-// args contain optional index
-func SimVarHsiCdiNeedle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiCdiNeedle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI CDI NEEDLE",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiGsiNeedle Simvar
-// args contain optional index
-func SimVarHsiGsiNeedle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiGsiNeedle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI GSI NEEDLE",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiCdiNeedleValid Simvar
-// args contain optional index
-func SimVarHsiCdiNeedleValid(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiCdiNeedleValid(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI CDI NEEDLE VALID",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiGsiNeedleValid Simvar
-// args contain optional index
-func SimVarHsiGsiNeedleValid(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiGsiNeedleValid(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI GSI NEEDLE VALID",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiTfFlags Simvar
-// args contain optional index
-func SimVarHsiTfFlags(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiTfFlags(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI TF FLAGS",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiBearingValid Simvar
-// args contain optional index
-func SimVarHsiBearingValid(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiBearingValid(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI BEARING VALID",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiBearing Simvar
-// args contain optional index
-func SimVarHsiBearing(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiBearing(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI BEARING",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiHasLocalizer Simvar
-// args contain optional index
-func SimVarHsiHasLocalizer(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiHasLocalizer(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI HAS LOCALIZER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiSpeed Simvar
-// args contain optional index
-func SimVarHsiSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI SPEED",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHsiDistance Simvar
-// args contain optional index
-func SimVarHsiDistance(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiDistance(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Nautical miles")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI DISTANCE",
-		Units:    "Nautical miles",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsPositionLat Simvar
-// args contain optional index
-func SimVarGpsPositionLat(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsPositionLat(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS POSITION LAT",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsPositionLon Simvar
-// args contain optional index
-func SimVarGpsPositionLon(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsPositionLon(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS POSITION LON",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsPositionAlt Simvar
-// args contain optional index
-func SimVarGpsPositionAlt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsPositionAlt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS POSITION ALT",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsMagvar Simvar
-// args contain optional index
-func SimVarGpsMagvar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsMagvar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS MAGVAR",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsActiveFlightPlan Simvar
-// args contain optional index
-func SimVarGpsIsActiveFlightPlan(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsActiveFlightPlan(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS ACTIVE FLIGHT PLAN",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsActiveWayPoint Simvar
-// args contain optional index
-func SimVarGpsIsActiveWayPoint(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsActiveWayPoint(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS ACTIVE WAY POINT",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsArrived Simvar
-// args contain optional index
-func SimVarGpsIsArrived(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsArrived(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS ARRIVED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsDirecttoFlightplan Simvar
-// args contain optional index
-func SimVarGpsIsDirecttoFlightplan(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsDirecttoFlightplan(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS DIRECTTO FLIGHTPLAN",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsGroundSpeed Simvar
-// args contain optional index
-func SimVarGpsGroundSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsGroundSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters per second")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS GROUND SPEED",
-		Units:    "Meters per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsGroundTrueHeading Simvar
-// args contain optional index
-func SimVarGpsGroundTrueHeading(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsGroundTrueHeading(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS GROUND TRUE HEADING",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsGroundMagneticTrack Simvar
-// args contain optional index
-func SimVarGpsGroundMagneticTrack(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsGroundMagneticTrack(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS GROUND MAGNETIC TRACK",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsGroundTrueTrack Simvar
-// args contain optional index
-func SimVarGpsGroundTrueTrack(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsGroundTrueTrack(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS GROUND TRUE TRACK",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpDistance Simvar
-// args contain optional index
-func SimVarGpsWpDistance(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpDistance(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP DISTANCE",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpBearing Simvar
-// args contain optional index
-func SimVarGpsWpBearing(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpBearing(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP BEARING",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpTrueBearing Simvar
-// args contain optional index
-func SimVarGpsWpTrueBearing(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpTrueBearing(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP TRUE BEARING",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpCrossTrk Simvar
-// args contain optional index
-func SimVarGpsWpCrossTrk(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpCrossTrk(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP CROSS TRK",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpDesiredTrack Simvar
-// args contain optional index
-func SimVarGpsWpDesiredTrack(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpDesiredTrack(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP DESIRED TRACK",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpTrueReqHdg Simvar
-// args contain optional index
-func SimVarGpsWpTrueReqHdg(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpTrueReqHdg(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP TRUE REQ HDG",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpVerticalSpeed Simvar
-// args contain optional index
-func SimVarGpsWpVerticalSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpVerticalSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters per second")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP VERTICAL SPEED",
-		Units:    "Meters per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpTrackAngleError Simvar
-// args contain optional index
-func SimVarGpsWpTrackAngleError(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpTrackAngleError(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP TRACK ANGLE ERROR",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsEte Simvar
-// args contain optional index
-func SimVarGpsEte(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsEte(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS ETE",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsEta Simvar
-// args contain optional index
-func SimVarGpsEta(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsEta(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS ETA",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpNextLat Simvar
-// args contain optional index
-func SimVarGpsWpNextLat(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpNextLat(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP NEXT LAT",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpNextLon Simvar
-// args contain optional index
-func SimVarGpsWpNextLon(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpNextLon(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP NEXT LON",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpNextAlt Simvar
-// args contain optional index
-func SimVarGpsWpNextAlt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpNextAlt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP NEXT ALT",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpPrevValid Simvar
-// args contain optional index
-func SimVarGpsWpPrevValid(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpPrevValid(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP PREV VALID",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpPrevLat Simvar
-// args contain optional index
-func SimVarGpsWpPrevLat(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpPrevLat(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP PREV LAT",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpPrevLon Simvar
-// args contain optional index
-func SimVarGpsWpPrevLon(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpPrevLon(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP PREV LON",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpPrevAlt Simvar
-// args contain optional index
-func SimVarGpsWpPrevAlt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpPrevAlt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP PREV ALT",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpEte Simvar
-// args contain optional index
-func SimVarGpsWpEte(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpEte(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP ETE",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpEta Simvar
-// args contain optional index
-func SimVarGpsWpEta(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpEta(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP ETA",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsCourseToSteer Simvar
-// args contain optional index
-func SimVarGpsCourseToSteer(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsCourseToSteer(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS COURSE TO STEER",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsFlightPlanWpIndex Simvar
-// args contain optional index
-func SimVarGpsFlightPlanWpIndex(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsFlightPlanWpIndex(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS FLIGHT PLAN WP INDEX",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsFlightPlanWpCount Simvar
-// args contain optional index
-func SimVarGpsFlightPlanWpCount(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsFlightPlanWpCount(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS FLIGHT PLAN WP COUNT",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsActiveWpLocked Simvar
-// args contain optional index
-func SimVarGpsIsActiveWpLocked(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsActiveWpLocked(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS ACTIVE WP LOCKED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsApproachLoaded Simvar
-// args contain optional index
-func SimVarGpsIsApproachLoaded(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsApproachLoaded(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS APPROACH LOADED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsIsApproachActive Simvar
-// args contain optional index
-func SimVarGpsIsApproachActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsIsApproachActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS IS APPROACH ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachMode Simvar
-// args contain optional index
-func SimVarGpsApproachMode(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachMode(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH MODE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachWpType Simvar
-// args contain optional index
-func SimVarGpsApproachWpType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachWpType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH WP TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachIsWpRunway Simvar
-// args contain optional index
-func SimVarGpsApproachIsWpRunway(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachIsWpRunway(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH IS WP RUNWAY",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachSegmentType Simvar
-// args contain optional index
-func SimVarGpsApproachSegmentType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachSegmentType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH SEGMENT TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachApproachIndex Simvar
-// args contain optional index
-func SimVarGpsApproachApproachIndex(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachApproachIndex(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH APPROACH INDEX",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachApproachType Simvar
-// args contain optional index
-func SimVarGpsApproachApproachType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachApproachType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH APPROACH TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachTransitionIndex Simvar
-// args contain optional index
-func SimVarGpsApproachTransitionIndex(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachTransitionIndex(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH TRANSITION INDEX",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachIsFinal Simvar
-// args contain optional index
-func SimVarGpsApproachIsFinal(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachIsFinal(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH IS FINAL",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachIsMissed Simvar
-// args contain optional index
-func SimVarGpsApproachIsMissed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachIsMissed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH IS MISSED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachTimezoneDeviation Simvar
-// args contain optional index
-func SimVarGpsApproachTimezoneDeviation(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachTimezoneDeviation(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH TIMEZONE DEVIATION",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachWpIndex Simvar
-// args contain optional index
-func SimVarGpsApproachWpIndex(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachWpIndex(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH WP INDEX",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachWpCount Simvar
-// args contain optional index
-func SimVarGpsApproachWpCount(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachWpCount(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH WP COUNT",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsDrivesNav1 Simvar
-func SimVarGpsDrivesNav1(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarGpsDrivesNav1(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS DRIVES NAV1",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComReceiveAll Simvar
-// args contain optional index
-func SimVarComReceiveAll(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComReceiveAll(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "COM RECEIVE ALL",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComAvailable Simvar
-// args contain optional index
-func SimVarComAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "COM AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarComTest Simvar
-// args contain optional index
-func SimVarComTest(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarComTest(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "COM TEST:index",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTransponderAvailable Simvar
-// args contain optional index
-func SimVarTransponderAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTransponderAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TRANSPONDER AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfAvailable Simvar
-// args contain optional index
-func SimVarAdfAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfFrequency Simvar
-// args contain optional index
-func SimVarAdfFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Frequency BCD16")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF FREQUENCY:index",
-		Units:    "Frequency BCD16",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfExtFrequency Simvar
-// args contain optional index
-func SimVarAdfExtFrequency(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfExtFrequency(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Frequency BCD16")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF EXT FREQUENCY:index",
-		Units:    "Frequency BCD16",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfIdent Simvar
-// args contain optional index
-func SimVarAdfIdent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfIdent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF IDENT",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAdfName Simvar
-// args contain optional index
-func SimVarAdfName(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAdfName(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "ADF NAME",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavIdent Simvar
-// args contain optional index
-func SimVarNavIdent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavIdent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV IDENT",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavName Simvar
-// args contain optional index
-func SimVarNavName(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavName(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV NAME",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavCodes Simvar
-// args contain optional index
-func SimVarNavCodes(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavCodes(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Flags")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV CODES:index",
-		Units:    "Flags",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGlideSlope Simvar
-// args contain optional index
-func SimVarNavGlideSlope(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavGlideSlope(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GLIDE SLOPE",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavRelativeBearingToStation Simvar
-// args contain optional index
-func SimVarNavRelativeBearingToStation(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarNavRelativeBearingToStation(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV RELATIVE BEARING TO STATION:index",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSelectedDme Simvar
-// args contain optional index
-func SimVarSelectedDme(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSelectedDme(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "SELECTED DME",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpNextId Simvar
-// args contain optional index
-func SimVarGpsWpNextId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpNextId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP NEXT ID",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsWpPrevId Simvar
-// args contain optional index
-func SimVarGpsWpPrevId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsWpPrevId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS WP PREV ID",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsTargetDistance Simvar
-// args contain optional index
-func SimVarGpsTargetDistance(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsTargetDistance(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS TARGET DISTANCE",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsTargetAltitude Simvar
-// args contain optional index
-func SimVarGpsTargetAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsTargetAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS TARGET ALTITUDE",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarYokeYPosition Simvar
-// args contain optional index
-func SimVarYokeYPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYokeYPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "YOKE Y POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarYokeXPosition Simvar
-// args contain optional index
-func SimVarYokeXPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYokeXPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "YOKE X POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRudderPedalPosition Simvar
-// args contain optional index
-func SimVarRudderPedalPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderPedalPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER PEDAL POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRudderPosition Simvar
-// args contain optional index
-func SimVarRudderPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElevatorPosition Simvar
-// args contain optional index
-func SimVarElevatorPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAileronPosition Simvar
-// args contain optional index
-func SimVarAileronPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElevatorTrimPosition Simvar
-// args contain optional index
-func SimVarElevatorTrimPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorTrimPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR TRIM POSITION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElevatorTrimIndicator Simvar
-// args contain optional index
-func SimVarElevatorTrimIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorTrimIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR TRIM INDICATOR",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarElevatorTrimPct Simvar
-// args contain optional index
-func SimVarElevatorTrimPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorTrimPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR TRIM PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBrakeLeftPosition Simvar
-// args contain optional index
-func SimVarBrakeLeftPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeLeftPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE LEFT POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarBrakeRightPosition Simvar
-// args contain optional index
-func SimVarBrakeRightPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeRightPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE RIGHT POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarBrakeIndicator Simvar
-// args contain optional index
-func SimVarBrakeIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE INDICATOR",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBrakeParkingPosition Simvar
-// args contain optional index
-func SimVarBrakeParkingPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeParkingPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE PARKING POSITION",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarBrakeParkingIndicator Simvar
-// args contain optional index
-func SimVarBrakeParkingIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeParkingIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE PARKING INDICATOR",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSpoilersArmed Simvar
-// args contain optional index
-func SimVarSpoilersArmed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSpoilersArmed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SPOILERS ARMED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSpoilersHandlePosition Simvar
-// args contain optional index
-func SimVarSpoilersHandlePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSpoilersHandlePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "SPOILERS HANDLE POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarSpoilersLeftPosition Simvar
-// args contain optional index
-func SimVarSpoilersLeftPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSpoilersLeftPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "SPOILERS LEFT POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSpoilersRightPosition Simvar
-// args contain optional index
-func SimVarSpoilersRightPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSpoilersRightPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "SPOILERS RIGHT POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlapsHandlePercent Simvar
-// args contain optional index
-func SimVarFlapsHandlePercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapsHandlePercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAPS HANDLE PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlapsHandleIndex Simvar
-// args contain optional index
-func SimVarFlapsHandleIndex(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapsHandleIndex(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAPS HANDLE INDEX",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFlapsNumHandlePositions Simvar
-// args contain optional index
-func SimVarFlapsNumHandlePositions(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapsNumHandlePositions(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAPS NUM HANDLE POSITIONS",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTrailingEdgeFlapsLeftPercent Simvar
-// args contain optional index
-func SimVarTrailingEdgeFlapsLeftPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTrailingEdgeFlapsLeftPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "TRAILING EDGE FLAPS LEFT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTrailingEdgeFlapsRightPercent Simvar
-// args contain optional index
-func SimVarTrailingEdgeFlapsRightPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTrailingEdgeFlapsRightPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "TRAILING EDGE FLAPS RIGHT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTrailingEdgeFlapsLeftAngle Simvar
-// args contain optional index
-func SimVarTrailingEdgeFlapsLeftAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTrailingEdgeFlapsLeftAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "TRAILING EDGE FLAPS LEFT ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTrailingEdgeFlapsRightAngle Simvar
-// args contain optional index
-func SimVarTrailingEdgeFlapsRightAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTrailingEdgeFlapsRightAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "TRAILING EDGE FLAPS RIGHT ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLeadingEdgeFlapsLeftPercent Simvar
-// args contain optional index
-func SimVarLeadingEdgeFlapsLeftPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeadingEdgeFlapsLeftPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "LEADING EDGE FLAPS LEFT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarLeadingEdgeFlapsRightPercent Simvar
-// args contain optional index
-func SimVarLeadingEdgeFlapsRightPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeadingEdgeFlapsRightPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "LEADING EDGE FLAPS RIGHT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarLeadingEdgeFlapsLeftAngle Simvar
-// args contain optional index
-func SimVarLeadingEdgeFlapsLeftAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeadingEdgeFlapsLeftAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "LEADING EDGE FLAPS LEFT ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLeadingEdgeFlapsRightAngle Simvar
-// args contain optional index
-func SimVarLeadingEdgeFlapsRightAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeadingEdgeFlapsRightAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "LEADING EDGE FLAPS RIGHT ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsGearRetractable Simvar
-// args contain optional index
-func SimVarIsGearRetractable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsGearRetractable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS GEAR RETRACTABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsGearSkis Simvar
-// args contain optional index
-func SimVarIsGearSkis(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsGearSkis(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS GEAR SKIS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsGearFloats Simvar
-// args contain optional index
-func SimVarIsGearFloats(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsGearFloats(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS GEAR FLOATS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsGearSkids Simvar
-// args contain optional index
-func SimVarIsGearSkids(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsGearSkids(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS GEAR SKIDS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsGearWheels Simvar
-// args contain optional index
-func SimVarIsGearWheels(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsGearWheels(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS GEAR WHEELS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearHandlePosition Simvar
-// args contain optional index
-func SimVarGearHandlePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearHandlePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR HANDLE POSITION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGearHydraulicPressure Simvar
-// args contain optional index
-func SimVarGearHydraulicPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearHydraulicPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "psf")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR HYDRAULIC PRESSURE",
-		Units:    "psf",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTailwheelLockOn Simvar
-// args contain optional index
-func SimVarTailwheelLockOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTailwheelLockOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TAILWHEEL LOCK ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearCenterPosition Simvar
-// args contain optional index
-func SimVarGearCenterPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearCenterPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR CENTER POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGearLeftPosition Simvar
-// args contain optional index
-func SimVarGearLeftPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearLeftPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR LEFT POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGearRightPosition Simvar
-// args contain optional index
-func SimVarGearRightPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearRightPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR RIGHT POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGearTailPosition Simvar
-// args contain optional index
-func SimVarGearTailPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearTailPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR TAIL POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearAuxPosition Simvar
-// args contain optional index
-func SimVarGearAuxPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearAuxPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR AUX POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearPosition Simvar
-// args contain optional index
-func SimVarGearPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR POSITION:index",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGearAnimationPosition Simvar
-// args contain optional index
-func SimVarGearAnimationPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearAnimationPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR ANIMATION POSITION:index",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearTotalPctExtended Simvar
-// args contain optional index
-func SimVarGearTotalPctExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearTotalPctExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percentage")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR TOTAL PCT EXTENDED",
-		Units:    "Percentage",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutoBrakeSwitchCb Simvar
-// args contain optional index
-func SimVarAutoBrakeSwitchCb(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutoBrakeSwitchCb(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTO BRAKE SWITCH CB",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterRudderHandlePosition Simvar
-// args contain optional index
-func SimVarWaterRudderHandlePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterRudderHandlePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER RUDDER HANDLE POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElevatorDeflection Simvar
-// args contain optional index
-func SimVarElevatorDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarElevatorDeflectionPct Simvar
-// args contain optional index
-func SimVarElevatorDeflectionPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevatorDeflectionPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVATOR DEFLECTION PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterLeftRudderExtended Simvar
-// args contain optional index
-func SimVarWaterLeftRudderExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterLeftRudderExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percentage")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER LEFT RUDDER EXTENDED",
-		Units:    "Percentage",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterRightRudderExtended Simvar
-// args contain optional index
-func SimVarWaterRightRudderExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterRightRudderExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percentage")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER RIGHT RUDDER EXTENDED",
-		Units:    "Percentage",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearCenterSteerAngle Simvar
-// args contain optional index
-func SimVarGearCenterSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearCenterSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR CENTER STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearLeftSteerAngle Simvar
-// args contain optional index
-func SimVarGearLeftSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearLeftSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR LEFT STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearRightSteerAngle Simvar
-// args contain optional index
-func SimVarGearRightSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearRightSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR RIGHT STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearAuxSteerAngle Simvar
-// args contain optional index
-func SimVarGearAuxSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearAuxSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR AUX STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearSteerAngle Simvar
-// args contain optional index
-func SimVarGearSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR STEER ANGLE:index",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterLeftRudderSteerAngle Simvar
-// args contain optional index
-func SimVarWaterLeftRudderSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterLeftRudderSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER LEFT RUDDER STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterRightRudderSteerAngle Simvar
-// args contain optional index
-func SimVarWaterRightRudderSteerAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterRightRudderSteerAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER RIGHT RUDDER STEER ANGLE",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearCenterSteerAnglePct Simvar
-// args contain optional index
-func SimVarGearCenterSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearCenterSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR CENTER STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearLeftSteerAnglePct Simvar
-// args contain optional index
-func SimVarGearLeftSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearLeftSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR LEFT STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearRightSteerAnglePct Simvar
-// args contain optional index
-func SimVarGearRightSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearRightSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR RIGHT STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearAuxSteerAnglePct Simvar
-// args contain optional index
-func SimVarGearAuxSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearAuxSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR AUX STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearSteerAnglePct Simvar
-// args contain optional index
-func SimVarGearSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR STEER ANGLE PCT:index",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterLeftRudderSteerAnglePct Simvar
-// args contain optional index
-func SimVarWaterLeftRudderSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterLeftRudderSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER LEFT RUDDER STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterRightRudderSteerAnglePct Simvar
-// args contain optional index
-func SimVarWaterRightRudderSteerAnglePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterRightRudderSteerAnglePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER RIGHT RUDDER STEER ANGLE PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronLeftDeflection Simvar
-// args contain optional index
-func SimVarAileronLeftDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronLeftDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON LEFT DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronLeftDeflectionPct Simvar
-// args contain optional index
-func SimVarAileronLeftDeflectionPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronLeftDeflectionPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON LEFT DEFLECTION PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronRightDeflection Simvar
-// args contain optional index
-func SimVarAileronRightDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronRightDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON RIGHT DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronRightDeflectionPct Simvar
-// args contain optional index
-func SimVarAileronRightDeflectionPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronRightDeflectionPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON RIGHT DEFLECTION PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronAverageDeflection Simvar
-// args contain optional index
-func SimVarAileronAverageDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronAverageDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON AVERAGE DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAileronTrim Simvar
-// args contain optional index
-func SimVarAileronTrim(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAileronTrim(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AILERON TRIM",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRudderDeflection Simvar
-// args contain optional index
-func SimVarRudderDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRudderDeflectionPct Simvar
-// args contain optional index
-func SimVarRudderDeflectionPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderDeflectionPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER DEFLECTION PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRudderTrim Simvar
-// args contain optional index
-func SimVarRudderTrim(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderTrim(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER TRIM",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlapsAvailable Simvar
-// args contain optional index
-func SimVarFlapsAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapsAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAPS AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearDamageBySpeed Simvar
-// args contain optional index
-func SimVarGearDamageBySpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearDamageBySpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR DAMAGE BY SPEED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearSpeedExceeded Simvar
-// args contain optional index
-func SimVarGearSpeedExceeded(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearSpeedExceeded(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR SPEED EXCEEDED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlapDamageBySpeed Simvar
-// args contain optional index
-func SimVarFlapDamageBySpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapDamageBySpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAP DAMAGE BY SPEED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFlapSpeedExceeded Simvar
-// args contain optional index
-func SimVarFlapSpeedExceeded(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFlapSpeedExceeded(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FLAP SPEED EXCEEDED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCenterWheelRpm Simvar
-// args contain optional index
-func SimVarCenterWheelRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCenterWheelRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "CENTER WHEEL RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLeftWheelRpm Simvar
-// args contain optional index
-func SimVarLeftWheelRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeftWheelRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "LEFT WHEEL RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRightWheelRpm Simvar
-// args contain optional index
-func SimVarRightWheelRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRightWheelRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "RIGHT WHEEL RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAvailable Simvar
-// args contain optional index
-func SimVarAutopilotAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotMaster Simvar
-// args contain optional index
-func SimVarAutopilotMaster(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotMaster(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT MASTER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotNavSelected Simvar
-// args contain optional index
-func SimVarAutopilotNavSelected(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotNavSelected(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT NAV SELECTED",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotWingLeveler Simvar
-// args contain optional index
-func SimVarAutopilotWingLeveler(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotWingLeveler(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT WING LEVELER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotHeadingLock Simvar
-// args contain optional index
-func SimVarAutopilotHeadingLock(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotHeadingLock(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT HEADING LOCK",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotHeadingLockDir Simvar
-// args contain optional index
-func SimVarAutopilotHeadingLockDir(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotHeadingLockDir(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT HEADING LOCK DIR",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAltitudeLock Simvar
-// args contain optional index
-func SimVarAutopilotAltitudeLock(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAltitudeLock(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT ALTITUDE LOCK",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAltitudeLockVar Simvar
-// args contain optional index
-func SimVarAutopilotAltitudeLockVar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAltitudeLockVar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT ALTITUDE LOCK VAR",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAttitudeHold Simvar
-// args contain optional index
-func SimVarAutopilotAttitudeHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAttitudeHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT ATTITUDE HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotGlideslopeHold Simvar
-// args contain optional index
-func SimVarAutopilotGlideslopeHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotGlideslopeHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT GLIDESLOPE HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotPitchHoldRef Simvar
-// args contain optional index
-func SimVarAutopilotPitchHoldRef(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotPitchHoldRef(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT PITCH HOLD REF",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotApproachHold Simvar
-// args contain optional index
-func SimVarAutopilotApproachHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotApproachHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT APPROACH HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotBackcourseHold Simvar
-// args contain optional index
-func SimVarAutopilotBackcourseHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotBackcourseHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT BACKCOURSE HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotVerticalHoldVar Simvar
-// args contain optional index
-func SimVarAutopilotVerticalHoldVar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotVerticalHoldVar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet/minute")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT VERTICAL HOLD VAR",
-		Units:    "Feet/minute",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotFlightDirectorActive Simvar
-// args contain optional index
-func SimVarAutopilotFlightDirectorActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotFlightDirectorActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotFlightDirectorPitch Simvar
-// args contain optional index
-func SimVarAutopilotFlightDirectorPitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotFlightDirectorPitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR PITCH",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotFlightDirectorBank Simvar
-// args contain optional index
-func SimVarAutopilotFlightDirectorBank(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotFlightDirectorBank(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT FLIGHT DIRECTOR BANK",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAirspeedHold Simvar
-// args contain optional index
-func SimVarAutopilotAirspeedHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAirspeedHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT AIRSPEED HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotAirspeedHoldVar Simvar
-// args contain optional index
-func SimVarAutopilotAirspeedHoldVar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotAirspeedHoldVar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT AIRSPEED HOLD VAR",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotMachHold Simvar
-// args contain optional index
-func SimVarAutopilotMachHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotMachHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT MACH HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotMachHoldVar Simvar
-// args contain optional index
-func SimVarAutopilotMachHoldVar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotMachHoldVar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT MACH HOLD VAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotYawDamper Simvar
-// args contain optional index
-func SimVarAutopilotYawDamper(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotYawDamper(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT YAW DAMPER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotRpmHoldVar Simvar
-// args contain optional index
-func SimVarAutopilotRpmHoldVar(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotRpmHoldVar(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT RPM HOLD VAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotThrottleArm Simvar
-// args contain optional index
-func SimVarAutopilotThrottleArm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotThrottleArm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT THROTTLE ARM",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotTakeoffPowerActive Simvar
-// args contain optional index
-func SimVarAutopilotTakeoffPowerActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotTakeoffPowerActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT TAKEOFF POWER ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutothrottleActive Simvar
-// args contain optional index
-func SimVarAutothrottleActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutothrottleActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOTHROTTLE ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotNav1Lock Simvar
-func SimVarAutopilotNav1Lock(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarAutopilotNav1Lock(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT NAV1 LOCK",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotVerticalHold Simvar
-// args contain optional index
-func SimVarAutopilotVerticalHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotVerticalHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT VERTICAL HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotRpmHold Simvar
-// args contain optional index
-func SimVarAutopilotRpmHold(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotRpmHold(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT RPM HOLD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAutopilotMaxBank Simvar
-// args contain optional index
-func SimVarAutopilotMaxBank(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutopilotMaxBank(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTOPILOT MAX BANK",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWheelRpm Simvar
-// args contain optional index
-func SimVarWheelRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWheelRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "WHEEL RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAuxWheelRpm Simvar
-// args contain optional index
-func SimVarAuxWheelRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAuxWheelRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "AUX WHEEL RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWheelRotationAngle Simvar
-// args contain optional index
-func SimVarWheelRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWheelRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "WHEEL ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCenterWheelRotationAngle Simvar
-// args contain optional index
-func SimVarCenterWheelRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCenterWheelRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "CENTER WHEEL ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLeftWheelRotationAngle Simvar
-// args contain optional index
-func SimVarLeftWheelRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLeftWheelRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "LEFT WHEEL ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRightWheelRotationAngle Simvar
-// args contain optional index
-func SimVarRightWheelRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRightWheelRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "RIGHT WHEEL ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAuxWheelRotationAngle Simvar
-// args contain optional index
-func SimVarAuxWheelRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAuxWheelRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "AUX WHEEL ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearEmergencyHandlePosition Simvar
-// args contain optional index
-func SimVarGearEmergencyHandlePosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearEmergencyHandlePosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR EMERGENCY HANDLE POSITION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGearWarning Simvar
-// args contain optional index
-func SimVarGearWarning(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGearWarning(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "GEAR WARNING",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAntiskidBrakesActive Simvar
-// args contain optional index
-func SimVarAntiskidBrakesActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAntiskidBrakesActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ANTISKID BRAKES ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRetractFloatSwitch Simvar
-// args contain optional index
-func SimVarRetractFloatSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRetractFloatSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RETRACT FLOAT SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRetractLeftFloatExtended Simvar
-// args contain optional index
-func SimVarRetractLeftFloatExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRetractLeftFloatExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "RETRACT LEFT FLOAT EXTENDED",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRetractRightFloatExtended Simvar
-// args contain optional index
-func SimVarRetractRightFloatExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRetractRightFloatExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent")
 	return SimVar{
 		Index:    index,
 		Name:     "RETRACT RIGHT FLOAT EXTENDED",
-		Units:    "Percent",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSteerInputControl Simvar
-// args contain optional index
-func SimVarSteerInputControl(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSteerInputControl(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "STEER INPUT CONTROL",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientDensity Simvar
-// args contain optional index
-func SimVarAmbientDensity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientDensity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Slugs per cubic feet")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT DENSITY",
-		Units:    "Slugs per cubic feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientTemperature Simvar
-// args contain optional index
-func SimVarAmbientTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT TEMPERATURE",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientPressure Simvar
-// args contain optional index
-func SimVarAmbientPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "inHg")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT PRESSURE",
-		Units:    "inHg",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientWindVelocity Simvar
-// args contain optional index
-func SimVarAmbientWindVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientWindVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT WIND VELOCITY",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientWindDirection Simvar
-// args contain optional index
-func SimVarAmbientWindDirection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientWindDirection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT WIND DIRECTION",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientWindX Simvar
-// args contain optional index
-func SimVarAmbientWindX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientWindX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters per second")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT WIND X",
-		Units:    "Meters per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientWindY Simvar
-// args contain optional index
-func SimVarAmbientWindY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientWindY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters per second")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT WIND Y",
-		Units:    "Meters per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientWindZ Simvar
-// args contain optional index
-func SimVarAmbientWindZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientWindZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters per second")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT WIND Z",
-		Units:    "Meters per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientPrecipState Simvar
-// args contain optional index
-func SimVarAmbientPrecipState(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientPrecipState(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Mask")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT PRECIP STATE",
-		Units:    "Mask",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAircraftWindX Simvar
-// args contain optional index
-func SimVarAircraftWindX(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAircraftWindX(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRCRAFT WIND X",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAircraftWindY Simvar
-// args contain optional index
-func SimVarAircraftWindY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAircraftWindY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRCRAFT WIND Y",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAircraftWindZ Simvar
-// args contain optional index
-func SimVarAircraftWindZ(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAircraftWindZ(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRCRAFT WIND Z",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBarometerPressure Simvar
-// args contain optional index
-func SimVarBarometerPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBarometerPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Millibars")
 	return SimVar{
 		Index:    index,
 		Name:     "BAROMETER PRESSURE",
-		Units:    "Millibars",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSeaLevelPressure Simvar
-// args contain optional index
-func SimVarSeaLevelPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSeaLevelPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Millibars")
 	return SimVar{
 		Index:    index,
 		Name:     "SEA LEVEL PRESSURE",
-		Units:    "Millibars",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalAirTemperature Simvar
-// args contain optional index
-func SimVarTotalAirTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalAirTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Celsius")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL AIR TEMPERATURE",
-		Units:    "Celsius",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWindshieldRainEffectAvailable Simvar
-// args contain optional index
-func SimVarWindshieldRainEffectAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWindshieldRainEffectAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "WINDSHIELD RAIN EFFECT AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientInCloud Simvar
-// args contain optional index
-func SimVarAmbientInCloud(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientInCloud(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT IN CLOUD",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAmbientVisibility Simvar
-// args contain optional index
-func SimVarAmbientVisibility(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAmbientVisibility(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "AMBIENT VISIBILITY",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStandardAtmTemperature Simvar
-// args contain optional index
-func SimVarStandardAtmTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStandardAtmTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "STANDARD ATM TEMPERATURE",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorBrakeHandlePos Simvar
-// args contain optional index
-func SimVarRotorBrakeHandlePos(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorBrakeHandlePos(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR BRAKE HANDLE POS",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorBrakeActive Simvar
-// args contain optional index
-func SimVarRotorBrakeActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorBrakeActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR BRAKE ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorClutchSwitchPos Simvar
-// args contain optional index
-func SimVarRotorClutchSwitchPos(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorClutchSwitchPos(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR CLUTCH SWITCH POS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorClutchActive Simvar
-// args contain optional index
-func SimVarRotorClutchActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorClutchActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR CLUTCH ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorTemperature Simvar
-// args contain optional index
-func SimVarRotorTemperature(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorTemperature(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rankine")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR TEMPERATURE",
-		Units:    "Rankine",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorChipDetected Simvar
-// args contain optional index
-func SimVarRotorChipDetected(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorChipDetected(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR CHIP DETECTED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorGovSwitchPos Simvar
-// args contain optional index
-func SimVarRotorGovSwitchPos(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorGovSwitchPos(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR GOV SWITCH POS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorGovActive Simvar
-// args contain optional index
-func SimVarRotorGovActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorGovActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR GOV ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorLateralTrimPct Simvar
-// args contain optional index
-func SimVarRotorLateralTrimPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorLateralTrimPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR LATERAL TRIM PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorRpmPct Simvar
-// args contain optional index
-func SimVarRotorRpmPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorRpmPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR RPM PCT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSmokeEnable Simvar
-// args contain optional index
-func SimVarSmokeEnable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSmokeEnable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SMOKE ENABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarSmokesystemAvailable Simvar
-// args contain optional index
-func SimVarSmokesystemAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSmokesystemAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SMOKESYSTEM AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPitotHeat Simvar
-// args contain optional index
-func SimVarPitotHeat(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPitotHeat(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PITOT HEAT",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFoldingWingLeftPercent Simvar
-// args contain optional index
-func SimVarFoldingWingLeftPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFoldingWingLeftPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FOLDING WING LEFT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarFoldingWingRightPercent Simvar
-// args contain optional index
-func SimVarFoldingWingRightPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFoldingWingRightPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "FOLDING WING RIGHT PERCENT",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarCanopyOpen Simvar
-// args contain optional index
-func SimVarCanopyOpen(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCanopyOpen(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CANOPY OPEN",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTailhookPosition Simvar
-// args contain optional index
-func SimVarTailhookPosition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTailhookPosition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "TAILHOOK POSITION",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarExitOpen Simvar
-// args contain optional index
-func SimVarExitOpen(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarExitOpen(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "EXIT OPEN:index",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarStallHornAvailable Simvar
-// args contain optional index
-func SimVarStallHornAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStallHornAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "STALL HORN AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEngineMixureAvailable Simvar
-// args contain optional index
-func SimVarEngineMixureAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEngineMixureAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ENGINE MIXURE AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCarbHeatAvailable Simvar
-// args contain optional index
-func SimVarCarbHeatAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCarbHeatAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CARB HEAT AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSpoilerAvailable Simvar
-// args contain optional index
-func SimVarSpoilerAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSpoilerAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SPOILER AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsTailDragger Simvar
-// args contain optional index
-func SimVarIsTailDragger(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsTailDragger(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS TAIL DRAGGER",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStrobesAvailable Simvar
-// args contain optional index
-func SimVarStrobesAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStrobesAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "STROBES AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarToeBrakesAvailable Simvar
-// args contain optional index
-func SimVarToeBrakesAvailable(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarToeBrakesAvailable(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TOE BRAKES AVAILABLE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackState Simvar
-// args contain optional index
-func SimVarPushbackState(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackState(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK STATE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalMasterBattery Simvar
-// args contain optional index
-func SimVarElectricalMasterBattery(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalMasterBattery(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL MASTER BATTERY",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalTotalLoadAmps Simvar
-// args contain optional index
-func SimVarElectricalTotalLoadAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalTotalLoadAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL TOTAL LOAD AMPS",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalBatteryLoad Simvar
-// args contain optional index
-func SimVarElectricalBatteryLoad(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalBatteryLoad(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL BATTERY LOAD",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalBatteryVoltage Simvar
-// args contain optional index
-func SimVarElectricalBatteryVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalBatteryVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL BATTERY VOLTAGE",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalMainBusVoltage Simvar
-// args contain optional index
-func SimVarElectricalMainBusVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalMainBusVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL MAIN BUS VOLTAGE",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalMainBusAmps Simvar
-// args contain optional index
-func SimVarElectricalMainBusAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalMainBusAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL MAIN BUS AMPS",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalAvionicsBusVoltage Simvar
-// args contain optional index
-func SimVarElectricalAvionicsBusVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalAvionicsBusVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL AVIONICS BUS VOLTAGE",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalAvionicsBusAmps Simvar
-// args contain optional index
-func SimVarElectricalAvionicsBusAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalAvionicsBusAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL AVIONICS BUS AMPS",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalHotBatteryBusVoltage Simvar
-// args contain optional index
-func SimVarElectricalHotBatteryBusVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalHotBatteryBusVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL HOT BATTERY BUS VOLTAGE",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalHotBatteryBusAmps Simvar
-// args contain optional index
-func SimVarElectricalHotBatteryBusAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalHotBatteryBusAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL HOT BATTERY BUS AMPS",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalBatteryBusVoltage Simvar
-// args contain optional index
-func SimVarElectricalBatteryBusVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalBatteryBusVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL BATTERY BUS VOLTAGE",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalBatteryBusAmps Simvar
-// args contain optional index
-func SimVarElectricalBatteryBusAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalBatteryBusAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL BATTERY BUS AMPS",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalGenaltBusVoltage Simvar
-// args contain optional index
-func SimVarElectricalGenaltBusVoltage(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalGenaltBusVoltage(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL GENALT BUS VOLTAGE:index",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarElectricalGenaltBusAmps Simvar
-// args contain optional index
-func SimVarElectricalGenaltBusAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalGenaltBusAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amperes")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL GENALT BUS AMPS:index",
-		Units:    "Amperes",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarCircuitGeneralPanelOn Simvar
-// args contain optional index
-func SimVarCircuitGeneralPanelOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitGeneralPanelOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT GENERAL PANEL ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitFlapMotorOn Simvar
-// args contain optional index
-func SimVarCircuitFlapMotorOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitFlapMotorOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT FLAP MOTOR ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitGearMotorOn Simvar
-// args contain optional index
-func SimVarCircuitGearMotorOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitGearMotorOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT GEAR MOTOR ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitAutopilotOn Simvar
-// args contain optional index
-func SimVarCircuitAutopilotOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitAutopilotOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT AUTOPILOT ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitAvionicsOn Simvar
-// args contain optional index
-func SimVarCircuitAvionicsOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitAvionicsOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT AVIONICS ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitPitotHeatOn Simvar
-// args contain optional index
-func SimVarCircuitPitotHeatOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitPitotHeatOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT PITOT HEAT ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitPropSyncOn Simvar
-// args contain optional index
-func SimVarCircuitPropSyncOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitPropSyncOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT PROP SYNC ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitAutoFeatherOn Simvar
-// args contain optional index
-func SimVarCircuitAutoFeatherOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitAutoFeatherOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT AUTO FEATHER ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitAutoBrakesOn Simvar
-// args contain optional index
-func SimVarCircuitAutoBrakesOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitAutoBrakesOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT AUTO BRAKES ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitStandyVacuumOn Simvar
-// args contain optional index
-func SimVarCircuitStandyVacuumOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitStandyVacuumOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT STANDY VACUUM ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitMarkerBeaconOn Simvar
-// args contain optional index
-func SimVarCircuitMarkerBeaconOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitMarkerBeaconOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT MARKER BEACON ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitGearWarningOn Simvar
-// args contain optional index
-func SimVarCircuitGearWarningOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitGearWarningOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT GEAR WARNING ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCircuitHydraulicPumpOn Simvar
-// args contain optional index
-func SimVarCircuitHydraulicPumpOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCircuitHydraulicPumpOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CIRCUIT HYDRAULIC PUMP ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHydraulicPressure Simvar
-// args contain optional index
-func SimVarHydraulicPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHydraulicPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pound force per square foot")
 	return SimVar{
 		Index:    index,
 		Name:     "HYDRAULIC PRESSURE:index",
-		Units:    "Pound force per square foot",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHydraulicReservoirPercent Simvar
-// args contain optional index
-func SimVarHydraulicReservoirPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHydraulicReservoirPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "HYDRAULIC RESERVOIR PERCENT:index",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarHydraulicSystemIntegrity Simvar
-// args contain optional index
-func SimVarHydraulicSystemIntegrity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHydraulicSystemIntegrity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "HYDRAULIC SYSTEM INTEGRITY",
-		Units:    "Percent Over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructuralDeiceSwitch Simvar
-// args contain optional index
-func SimVarStructuralDeiceSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructuralDeiceSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCTURAL DEICE SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWeight Simvar
-// args contain optional index
-func SimVarTotalWeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WEIGHT",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMaxGrossWeight Simvar
-// args contain optional index
-func SimVarMaxGrossWeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMaxGrossWeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "MAX GROSS WEIGHT",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEmptyWeight Simvar
-// args contain optional index
-func SimVarEmptyWeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEmptyWeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "EMPTY WEIGHT",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsUserSim Simvar
-// args contain optional index
-func SimVarIsUserSim(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsUserSim(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS USER SIM",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSimDisabled Simvar
-// args contain optional index
-func SimVarSimDisabled(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSimDisabled(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SIM DISABLED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGForce Simvar
-// args contain optional index
-func SimVarGForce(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGForce(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "GForce")
 	return SimVar{
 		Index:    index,
 		Name:     "G FORCE",
-		Units:    "GForce",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAtcHeavy Simvar
-// args contain optional index
-func SimVarAtcHeavy(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcHeavy(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC HEAVY",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAutoCoordination Simvar
-// args contain optional index
-func SimVarAutoCoordination(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAutoCoordination(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "AUTO COORDINATION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarRealism Simvar
-// args contain optional index
-func SimVarRealism(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRealism(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "REALISM",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTrueAirspeedSelected Simvar
-// args contain optional index
-func SimVarTrueAirspeedSelected(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTrueAirspeedSelected(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TRUE AIRSPEED SELECTED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarDesignSpeedVc Simvar
-// args contain optional index
-func SimVarDesignSpeedVc(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDesignSpeedVc(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "DESIGN SPEED VC",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMinDragVelocity Simvar
-// args contain optional index
-func SimVarMinDragVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMinDragVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "MIN DRAG VELOCITY",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEstimatedCruiseSpeed Simvar
-// args contain optional index
-func SimVarEstimatedCruiseSpeed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEstimatedCruiseSpeed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "ESTIMATED CRUISE SPEED",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgPercent Simvar
-// args contain optional index
-func SimVarCgPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CG PERCENT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgPercentLateral Simvar
-// args contain optional index
-func SimVarCgPercentLateral(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgPercentLateral(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CG PERCENT LATERAL",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsSlewActive Simvar
-// args contain optional index
-func SimVarIsSlewActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsSlewActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS SLEW ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarIsSlewAllowed Simvar
-// args contain optional index
-func SimVarIsSlewAllowed(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsSlewAllowed(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS SLEW ALLOWED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAtcSuggestedMinRwyTakeoff Simvar
-// args contain optional index
-func SimVarAtcSuggestedMinRwyTakeoff(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcSuggestedMinRwyTakeoff(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC SUGGESTED MIN RWY TAKEOFF",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAtcSuggestedMinRwyLanding Simvar
-// args contain optional index
-func SimVarAtcSuggestedMinRwyLanding(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcSuggestedMinRwyLanding(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC SUGGESTED MIN RWY LANDING",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPayloadStationWeight Simvar
-// args contain optional index
-func SimVarPayloadStationWeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPayloadStationWeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "PAYLOAD STATION WEIGHT:index",
-		Units:    "Pounds",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarPayloadStationCount Simvar
-// args contain optional index
-func SimVarPayloadStationCount(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPayloadStationCount(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "PAYLOAD STATION COUNT",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarUserInputEnabled Simvar
-// args contain optional index
-func SimVarUserInputEnabled(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarUserInputEnabled(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "USER INPUT ENABLED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarTypicalDescentRate Simvar
-// args contain optional index
-func SimVarTypicalDescentRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTypicalDescentRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per minute")
 	return SimVar{
 		Index:    index,
 		Name:     "TYPICAL DESCENT RATE",
-		Units:    "Feet per minute",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarVisualModelRadius Simvar
-// args contain optional index
-func SimVarVisualModelRadius(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVisualModelRadius(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "VISUAL MODEL RADIUS",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCategory Simvar
-// args contain optional index
-func SimVarCategory(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCategory(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "CATEGORY",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSigmaSqrt Simvar
-// args contain optional index
-func SimVarSigmaSqrt(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSigmaSqrt(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "SIGMA SQRT",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDynamicPressure Simvar
-// args contain optional index
-func SimVarDynamicPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDynamicPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Pounds per square foot")
 	return SimVar{
 		Index:    index,
 		Name:     "DYNAMIC PRESSURE",
-		Units:    "Pounds per square foot",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalVelocity Simvar
-// args contain optional index
-func SimVarTotalVelocity(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalVelocity(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL VELOCITY",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAirspeedSelectIndicatedOrTrue Simvar
-// args contain optional index
-func SimVarAirspeedSelectIndicatedOrTrue(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAirspeedSelectIndicatedOrTrue(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Knots")
 	return SimVar{
 		Index:    index,
 		Name:     "AIRSPEED SELECT INDICATED OR TRUE",
-		Units:    "Knots",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarVariometerRate Simvar
-// args contain optional index
-func SimVarVariometerRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVariometerRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "VARIOMETER RATE",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarVariometerSwitch Simvar
-// args contain optional index
-func SimVarVariometerSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarVariometerSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "VARIOMETER SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDesignSpeedVs0 Simvar
-func SimVarDesignSpeedVs0(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarDesignSpeedVs0(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "DESIGN SPEED VS0",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDesignSpeedVs1 Simvar
-func SimVarDesignSpeedVs1(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarDesignSpeedVs1(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "DESIGN SPEED VS1",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressureAltitude Simvar
-// args contain optional index
-func SimVarPressureAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressureAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Meters")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURE ALTITUDE",
-		Units:    "Meters",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMagneticCompass Simvar
-// args contain optional index
-func SimVarMagneticCompass(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMagneticCompass(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Degrees")
 	return SimVar{
 		Index:    index,
 		Name:     "MAGNETIC COMPASS",
-		Units:    "Degrees",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurnIndicatorRate Simvar
-// args contain optional index
-func SimVarTurnIndicatorRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurnIndicatorRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians per second")
 	return SimVar{
 		Index:    index,
 		Name:     "TURN INDICATOR RATE",
-		Units:    "Radians per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTurnIndicatorSwitch Simvar
-// args contain optional index
-func SimVarTurnIndicatorSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTurnIndicatorSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TURN INDICATOR SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarYokeYIndicator Simvar
-// args contain optional index
-func SimVarYokeYIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYokeYIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "YOKE Y INDICATOR",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarYokeXIndicator Simvar
-// args contain optional index
-func SimVarYokeXIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYokeXIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "YOKE X INDICATOR",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRudderPedalIndicator Simvar
-// args contain optional index
-func SimVarRudderPedalIndicator(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRudderPedalIndicator(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Position")
 	return SimVar{
 		Index:    index,
 		Name:     "RUDDER PEDAL INDICATOR",
-		Units:    "Position",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBrakeDependentHydraulicPressure Simvar
-// args contain optional index
-func SimVarBrakeDependentHydraulicPressure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBrakeDependentHydraulicPressure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "foot pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "BRAKE DEPENDENT HYDRAULIC PRESSURE",
-		Units:    "foot pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPanelAntiIceSwitch Simvar
-// args contain optional index
-func SimVarPanelAntiIceSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPanelAntiIceSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PANEL ANTI ICE SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWingArea Simvar
-// args contain optional index
-func SimVarWingArea(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWingArea(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Square feet")
 	return SimVar{
 		Index:    index,
 		Name:     "WING AREA",
-		Units:    "Square feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWingSpan Simvar
-// args contain optional index
-func SimVarWingSpan(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWingSpan(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "WING SPAN",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBetaDot Simvar
-// args contain optional index
-func SimVarBetaDot(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBetaDot(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians per second")
 	return SimVar{
 		Index:    index,
 		Name:     "BETA DOT",
-		Units:    "Radians per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLinearClAlpha Simvar
-// args contain optional index
-func SimVarLinearClAlpha(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLinearClAlpha(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Per radian")
 	return SimVar{
 		Index:    index,
 		Name:     "LINEAR CL ALPHA",
-		Units:    "Per radian",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStallAlpha Simvar
-// args contain optional index
-func SimVarStallAlpha(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStallAlpha(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "STALL ALPHA",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZeroLiftAlpha Simvar
-// args contain optional index
-func SimVarZeroLiftAlpha(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZeroLiftAlpha(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ZERO LIFT ALPHA",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgAftLimit Simvar
-// args contain optional index
-func SimVarCgAftLimit(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgAftLimit(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CG AFT LIMIT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgFwdLimit Simvar
-// args contain optional index
-func SimVarCgFwdLimit(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgFwdLimit(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CG FWD LIMIT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgMaxMach Simvar
-// args contain optional index
-func SimVarCgMaxMach(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgMaxMach(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Machs")
 	return SimVar{
 		Index:    index,
 		Name:     "CG MAX MACH",
-		Units:    "Machs",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCgMinMach Simvar
-// args contain optional index
-func SimVarCgMinMach(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCgMinMach(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Machs")
 	return SimVar{
 		Index:    index,
 		Name:     "CG MIN MACH",
-		Units:    "Machs",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPayloadStationName Simvar
-// args contain optional index
-func SimVarPayloadStationName(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPayloadStationName(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "PAYLOAD STATION NAME",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarElevonDeflection Simvar
-// args contain optional index
-func SimVarElevonDeflection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElevonDeflection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ELEVON DEFLECTION",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarExitType Simvar
-// args contain optional index
-func SimVarExitType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarExitType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "EXIT TYPE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarExitPosx Simvar
-// args contain optional index
-func SimVarExitPosx(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarExitPosx(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "EXIT POSX",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarExitPosy Simvar
-// args contain optional index
-func SimVarExitPosy(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarExitPosy(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "EXIT POSY",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarExitPosz Simvar
-// args contain optional index
-func SimVarExitPosz(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarExitPosz(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "EXIT POSZ",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDecisionHeight Simvar
-// args contain optional index
-func SimVarDecisionHeight(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDecisionHeight(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "DECISION HEIGHT",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDecisionAltitudeMsl Simvar
-// args contain optional index
-func SimVarDecisionAltitudeMsl(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDecisionAltitudeMsl(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "DECISION ALTITUDE MSL",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEmptyWeightPitchMoi Simvar
-// args contain optional index
-func SimVarEmptyWeightPitchMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEmptyWeightPitchMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "EMPTY WEIGHT PITCH MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEmptyWeightRollMoi Simvar
-// args contain optional index
-func SimVarEmptyWeightRollMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEmptyWeightRollMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "EMPTY WEIGHT ROLL MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEmptyWeightYawMoi Simvar
-// args contain optional index
-func SimVarEmptyWeightYawMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEmptyWeightYawMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "EMPTY WEIGHT YAW MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarEmptyWeightCrossCoupledMoi Simvar
-// args contain optional index
-func SimVarEmptyWeightCrossCoupledMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarEmptyWeightCrossCoupledMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "EMPTY WEIGHT CROSS COUPLED MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWeightPitchMoi Simvar
-// args contain optional index
-func SimVarTotalWeightPitchMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWeightPitchMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WEIGHT PITCH MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWeightRollMoi Simvar
-// args contain optional index
-func SimVarTotalWeightRollMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWeightRollMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WEIGHT ROLL MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWeightYawMoi Simvar
-// args contain optional index
-func SimVarTotalWeightYawMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWeightYawMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WEIGHT YAW MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTotalWeightCrossCoupledMoi Simvar
-// args contain optional index
-func SimVarTotalWeightCrossCoupledMoi(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTotalWeightCrossCoupledMoi(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "slug feet squared")
 	return SimVar{
 		Index:    index,
 		Name:     "TOTAL WEIGHT CROSS COUPLED MOI",
-		Units:    "slug feet squared",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarWaterBallastValve Simvar
-// args contain optional index
-func SimVarWaterBallastValve(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarWaterBallastValve(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "WATER BALLAST VALVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarMaxRatedEngineRpm Simvar
-// args contain optional index
-func SimVarMaxRatedEngineRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarMaxRatedEngineRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Rpm")
 	return SimVar{
 		Index:    index,
 		Name:     "MAX RATED ENGINE RPM",
-		Units:    "Rpm",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFullThrottleThrustToWeightRatio Simvar
-// args contain optional index
-func SimVarFullThrottleThrustToWeightRatio(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFullThrottleThrustToWeightRatio(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "FULL THROTTLE THRUST TO WEIGHT RATIO",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropAutoCruiseActive Simvar
-// args contain optional index
-func SimVarPropAutoCruiseActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropAutoCruiseActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP AUTO CRUISE ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropRotationAngle Simvar
-// args contain optional index
-func SimVarPropRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropBetaMax Simvar
-// args contain optional index
-func SimVarPropBetaMax(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropBetaMax(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP BETA MAX",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropBetaMin Simvar
-// args contain optional index
-func SimVarPropBetaMin(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropBetaMin(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP BETA MIN",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPropBetaMinReverse Simvar
-// args contain optional index
-func SimVarPropBetaMinReverse(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPropBetaMinReverse(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PROP BETA MIN REVERSE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFuelSelectedTransferMode Simvar
-// args contain optional index
-func SimVarFuelSelectedTransferMode(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFuelSelectedTransferMode(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "FUEL SELECTED TRANSFER MODE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDroppableObjectsUiName Simvar
-// args contain optional index
-func SimVarDroppableObjectsUiName(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDroppableObjectsUiName(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "DROPPABLE OBJECTS UI NAME",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarManualFuelPumpHandle Simvar
-// args contain optional index
-func SimVarManualFuelPumpHandle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarManualFuelPumpHandle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "MANUAL FUEL PUMP HANDLE",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarBleedAirSourceControl Simvar
-// args contain optional index
-func SimVarBleedAirSourceControl(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarBleedAirSourceControl(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "BLEED AIR SOURCE CONTROL",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarElectricalOldChargingAmps Simvar
-// args contain optional index
-func SimVarElectricalOldChargingAmps(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarElectricalOldChargingAmps(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Amps")
 	return SimVar{
 		Index:    index,
 		Name:     "ELECTRICAL OLD CHARGING AMPS",
-		Units:    "Amps",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarHydraulicSwitch Simvar
-// args contain optional index
-func SimVarHydraulicSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHydraulicSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "HYDRAULIC SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarConcordeVisorNoseHandle Simvar
-// args contain optional index
-func SimVarConcordeVisorNoseHandle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarConcordeVisorNoseHandle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "CONCORDE VISOR NOSE HANDLE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarConcordeVisorPositionPercent Simvar
-// args contain optional index
-func SimVarConcordeVisorPositionPercent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarConcordeVisorPositionPercent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "CONCORDE VISOR POSITION PERCENT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarConcordeNoseAngle Simvar
-// args contain optional index
-func SimVarConcordeNoseAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarConcordeNoseAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "CONCORDE NOSE ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRealismCrashWithOthers Simvar
-// args contain optional index
-func SimVarRealismCrashWithOthers(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRealismCrashWithOthers(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "REALISM CRASH WITH OTHERS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRealismCrashDetection Simvar
-// args contain optional index
-func SimVarRealismCrashDetection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRealismCrashDetection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "REALISM CRASH DETECTION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarManualInstrumentLights Simvar
-// args contain optional index
-func SimVarManualInstrumentLights(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarManualInstrumentLights(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "MANUAL INSTRUMENT LIGHTS",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPitotIcePct Simvar
-// args contain optional index
-func SimVarPitotIcePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPitotIcePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "PITOT ICE PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSemibodyLoadfactorY Simvar
-// args contain optional index
-func SimVarSemibodyLoadfactorY(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSemibodyLoadfactorY(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "SEMIBODY LOADFACTOR Y",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSemibodyLoadfactorYdot Simvar
-// args contain optional index
-func SimVarSemibodyLoadfactorYdot(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSemibodyLoadfactorYdot(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Per second")
 	return SimVar{
 		Index:    index,
 		Name:     "SEMIBODY LOADFACTOR YDOT",
-		Units:    "Per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRadInsSwitch Simvar
-// args contain optional index
-func SimVarRadInsSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRadInsSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "RAD INS SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSimulatedRadius Simvar
-// args contain optional index
-func SimVarSimulatedRadius(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSimulatedRadius(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "SIMULATED RADIUS",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStructuralIcePct Simvar
-// args contain optional index
-func SimVarStructuralIcePct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStructuralIcePct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "STRUCTURAL ICE PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarArtificialGroundElevation Simvar
-// args contain optional index
-func SimVarArtificialGroundElevation(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarArtificialGroundElevation(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "ARTIFICIAL GROUND ELEVATION",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSurfaceInfoValid Simvar
-// args contain optional index
-func SimVarSurfaceInfoValid(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSurfaceInfoValid(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "SURFACE INFO VALID",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSurfaceCondition Simvar
-// args contain optional index
-func SimVarSurfaceCondition(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSurfaceCondition(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "SURFACE CONDITION",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackAngle Simvar
-// args contain optional index
-func SimVarPushbackAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackContactx Simvar
-// args contain optional index
-func SimVarPushbackContactx(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackContactx(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK CONTACTX",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackContacty Simvar
-// args contain optional index
-func SimVarPushbackContacty(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackContacty(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK CONTACTY",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackContactz Simvar
-// args contain optional index
-func SimVarPushbackContactz(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackContactz(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK CONTACTZ",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPushbackWait Simvar
-// args contain optional index
-func SimVarPushbackWait(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPushbackWait(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PUSHBACK WAIT",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarYawStringAngle Simvar
-// args contain optional index
-func SimVarYawStringAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYawStringAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "YAW STRING ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarYawStringPctExtended Simvar
-// args contain optional index
-func SimVarYawStringPctExtended(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarYawStringPctExtended(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "YAW STRING PCT EXTENDED",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarInductorCompassPercentDeviation Simvar
-// args contain optional index
-func SimVarInductorCompassPercentDeviation(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarInductorCompassPercentDeviation(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "INDUCTOR COMPASS PERCENT DEVIATION",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarInductorCompassHeadingRef Simvar
-// args contain optional index
-func SimVarInductorCompassHeadingRef(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarInductorCompassHeadingRef(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "INDUCTOR COMPASS HEADING REF",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAnemometerPctRpm Simvar
-// args contain optional index
-func SimVarAnemometerPctRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAnemometerPctRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "ANEMOMETER PCT RPM",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarRotorRotationAngle Simvar
-// args contain optional index
-func SimVarRotorRotationAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarRotorRotationAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "ROTOR ROTATION ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDiskPitchAngle Simvar
-// args contain optional index
-func SimVarDiskPitchAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDiskPitchAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "DISK PITCH ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDiskBankAngle Simvar
-// args contain optional index
-func SimVarDiskBankAngle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDiskBankAngle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "DISK BANK ANGLE",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDiskPitchPct Simvar
-// args contain optional index
-func SimVarDiskPitchPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDiskPitchPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "DISK PITCH PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDiskBankPct Simvar
-// args contain optional index
-func SimVarDiskBankPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDiskBankPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "DISK BANK PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarDiskConingPct Simvar
-// args contain optional index
-func SimVarDiskConingPct(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarDiskConingPct(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "DISK CONING PCT",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavVorLlaf64 Simvar
-func SimVarNavVorLlaf64(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarNavVorLlaf64(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV VOR LLAF64",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarNavGsLlaf64 Simvar
-func SimVarNavGsLlaf64(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+func SimVarNavGsLlaf64(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "SIMCONNECT_DATA_LATLONALT")
 	return SimVar{
 		Index:    index,
 		Name:     "NAV GS LLAF64",
-		Units:    "SIMCONNECT_DATA_LATLONALT",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStaticCgToGround Simvar
-// args contain optional index
-func SimVarStaticCgToGround(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStaticCgToGround(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "STATIC CG TO GROUND",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarStaticPitch Simvar
-// args contain optional index
-func SimVarStaticPitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarStaticPitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Radians")
 	return SimVar{
 		Index:    index,
 		Name:     "STATIC PITCH",
-		Units:    "Radians",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCrashSequence Simvar
-// args contain optional index
-func SimVarCrashSequence(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCrashSequence(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "CRASH SEQUENCE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCrashFlag Simvar
-// args contain optional index
-func SimVarCrashFlag(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCrashFlag(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "CRASH FLAG",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTowReleaseHandle Simvar
-// args contain optional index
-func SimVarTowReleaseHandle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTowReleaseHandle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "TOW RELEASE HANDLE",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTowConnection Simvar
-// args contain optional index
-func SimVarTowConnection(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTowConnection(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "TOW CONNECTION",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuPctRpm Simvar
-// args contain optional index
-func SimVarApuPctRpm(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuPctRpm(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "APU PCT RPM",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuPctStarter Simvar
-// args contain optional index
-func SimVarApuPctStarter(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuPctStarter(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Percent over 100")
 	return SimVar{
 		Index:    index,
 		Name:     "APU PCT STARTER",
-		Units:    "Percent over 100",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuVolts Simvar
-// args contain optional index
-func SimVarApuVolts(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuVolts(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Volts")
 	return SimVar{
 		Index:    index,
 		Name:     "APU VOLTS",
-		Units:    "Volts",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuGeneratorSwitch Simvar
-// args contain optional index
-func SimVarApuGeneratorSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuGeneratorSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "APU GENERATOR SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuGeneratorActive Simvar
-// args contain optional index
-func SimVarApuGeneratorActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuGeneratorActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "APU GENERATOR ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarApuOnFireDetected Simvar
-// args contain optional index
-func SimVarApuOnFireDetected(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarApuOnFireDetected(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "APU ON FIRE DETECTED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressurizationCabinAltitude Simvar
-// args contain optional index
-func SimVarPressurizationCabinAltitude(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressurizationCabinAltitude(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressurizationCabinAltitudeGoal Simvar
-// args contain optional index
-func SimVarPressurizationCabinAltitudeGoal(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressurizationCabinAltitudeGoal(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE GOAL",
-		Units:    "Feet",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressurizationCabinAltitudeRate Simvar
-// args contain optional index
-func SimVarPressurizationCabinAltitudeRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressurizationCabinAltitudeRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Feet per second")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURIZATION CABIN ALTITUDE RATE",
-		Units:    "Feet per second",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressurizationPressureDifferential Simvar
-// args contain optional index
-func SimVarPressurizationPressureDifferential(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressurizationPressureDifferential(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "foot pounds")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURIZATION PRESSURE DIFFERENTIAL",
-		Units:    "foot pounds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarPressurizationDumpSwitch Simvar
-// args contain optional index
-func SimVarPressurizationDumpSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarPressurizationDumpSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "PRESSURIZATION DUMP SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFireBottleSwitch Simvar
-// args contain optional index
-func SimVarFireBottleSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFireBottleSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FIRE BOTTLE SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarFireBottleDischarged Simvar
-// args contain optional index
-func SimVarFireBottleDischarged(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarFireBottleDischarged(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "FIRE BOTTLE DISCHARGED",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarCabinNoSmokingAlertSwitch Simvar
-// args contain optional index
-func SimVarCabinNoSmokingAlertSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCabinNoSmokingAlertSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CABIN NO SMOKING ALERT SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarCabinSeatbeltsAlertSwitch Simvar
-// args contain optional index
-func SimVarCabinSeatbeltsAlertSwitch(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarCabinSeatbeltsAlertSwitch(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "CABIN SEATBELTS ALERT SWITCH",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarGpwsWarning Simvar
-// args contain optional index
-func SimVarGpwsWarning(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpwsWarning(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPWS WARNING",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpwsSystemActive Simvar
-// args contain optional index
-func SimVarGpwsSystemActive(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpwsSystemActive(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "GPWS SYSTEM ACTIVE",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarIsLatitudeLongitudeFreezeOn Simvar
-// args contain optional index
-func SimVarIsLatitudeLongitudeFreezeOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsLatitudeLongitudeFreezeOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS LATITUDE LONGITUDE FREEZE ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsAltitudeFreezeOn Simvar
-// args contain optional index
-func SimVarIsAltitudeFreezeOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsAltitudeFreezeOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS ALTITUDE FREEZE ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarIsAttitudeFreezeOn Simvar
-// args contain optional index
-func SimVarIsAttitudeFreezeOn(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarIsAttitudeFreezeOn(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Bool")
 	return SimVar{
 		Index:    index,
 		Name:     "IS ATTITUDE FREEZE ON",
-		Units:    "Bool",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAtcType Simvar
-// args contain optional index
-func SimVarAtcType(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcType(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String64")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC TYPE",
-		Units:    "String64",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAtcModel Simvar
-// args contain optional index
-func SimVarAtcModel(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcModel(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String64")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC MODEL",
-		Units:    "String64",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAtcId Simvar
-// args contain optional index
-func SimVarAtcId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String64")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC ID",
-		Units:    "String64",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAtcAirline Simvar
-// args contain optional index
-func SimVarAtcAirline(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcAirline(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String64")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC AIRLINE",
-		Units:    "String64",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
 // SimVarAtcFlightNumber Simvar
-// args contain optional index
-func SimVarAtcFlightNumber(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAtcFlightNumber(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String8")
 	return SimVar{
 		Index:    index,
 		Name:     "ATC FLIGHT NUMBER",
-		Units:    "String8",
+		Unit:     unit,
 		Settable: true,
 	}
 }
 
-// SimVarTitle Actually not supported and crash FS2020
-// args contain optional index
-/*func SimVarTitle(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// SimVarTitle Simvar
+// args contain optional index and/or unit
+func SimVarTitle(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "TITLE",
-		Units:    "Variable length string",
+		Unit:     unit,
 		Settable: false,
 	}
-}*/
+}
 
 // SimVarHsiStationIdent Simvar
-// args contain optional index
-func SimVarHsiStationIdent(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarHsiStationIdent(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String8")
 	return SimVar{
 		Index:    index,
 		Name:     "HSI STATION IDENT",
-		Units:    "String8",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachAirportId Simvar
-// args contain optional index
-func SimVarGpsApproachAirportId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachAirportId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH AIRPORT ID",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachApproachId Simvar
-// args contain optional index
-func SimVarGpsApproachApproachId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachApproachId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH APPROACH ID",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarGpsApproachTransitionId Simvar
-// args contain optional index
-func SimVarGpsApproachTransitionId(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarGpsApproachTransitionId(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "String")
 	return SimVar{
 		Index:    index,
 		Name:     "GPS APPROACH TRANSITION ID",
-		Units:    "String",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarAbsoluteTime Simvar
-// args contain optional index
-func SimVarAbsoluteTime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarAbsoluteTime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "ABSOLUTE TIME",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluTime Simvar
-// args contain optional index
-func SimVarZuluTime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluTime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU TIME",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluDayOfWeek Simvar
-// args contain optional index
-func SimVarZuluDayOfWeek(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluDayOfWeek(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU DAY OF WEEK",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluDayOfMonth Simvar
-// args contain optional index
-func SimVarZuluDayOfMonth(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluDayOfMonth(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU DAY OF MONTH",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluMonthOfYear Simvar
-// args contain optional index
-func SimVarZuluMonthOfYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluMonthOfYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU MONTH OF YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluDayOfYear Simvar
-// args contain optional index
-func SimVarZuluDayOfYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluDayOfYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU DAY OF YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarZuluYear Simvar
-// args contain optional index
-func SimVarZuluYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarZuluYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "ZULU YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalTime Simvar
-// args contain optional index
-func SimVarLocalTime(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalTime(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL TIME",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalDayOfWeek Simvar
-// args contain optional index
-func SimVarLocalDayOfWeek(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalDayOfWeek(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL DAY OF WEEK",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalDayOfMonth Simvar
-// args contain optional index
-func SimVarLocalDayOfMonth(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalDayOfMonth(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL DAY OF MONTH",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalMonthOfYear Simvar
-// args contain optional index
-func SimVarLocalMonthOfYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalMonthOfYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL MONTH OF YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalDayOfYear Simvar
-// args contain optional index
-func SimVarLocalDayOfYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalDayOfYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL DAY OF YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarLocalYear Simvar
-// args contain optional index
-func SimVarLocalYear(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarLocalYear(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "LOCAL YEAR",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTimeZoneOffset Simvar
-// args contain optional index
-func SimVarTimeZoneOffset(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTimeZoneOffset(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Seconds")
 	return SimVar{
 		Index:    index,
 		Name:     "TIME ZONE OFFSET",
-		Units:    "Seconds",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarTimeOfDay Simvar
-// args contain optional index
-func SimVarTimeOfDay(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarTimeOfDay(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "TIME OF DAY",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
 // SimVarSimulationRate Simvar
-// args contain optional index
-func SimVarSimulationRate(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// args contain optional index and/or unit
+func SimVarSimulationRate(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Number")
 	return SimVar{
 		Index:    index,
 		Name:     "SIMULATION RATE",
-		Units:    "Number",
+		Unit:     unit,
 		Settable: false,
 	}
 }
 
-// SimVarUnitsOfMeasure Simvar
-// args contain optional index
-func SimVarUnitsOfMeasure(args ...int) SimVar {
-	index := 0
-	if len(args) > 0 {
-		index = args[0]
-	}
+// SimVarUnitOfMeasure Simvar
+// args contain optional index and/or unit
+func SimVarUnitOfMeasure(args ...interface{}) SimVar {
+	index, unit := readArgs(args, 0, "Enum")
 	return SimVar{
 		Index:    index,
 		Name:     "UNITS OF MEASURE",
-		Units:    "Enum",
+		Unit:     unit,
 		Settable: false,
 	}
 }

@@ -11,6 +11,14 @@ func cChar(str string) uintptr {
 	return uintptr(unsafe.Pointer(&b[0]))
 }
 
+func cBool(b bool) uintptr {
+	mask := 0
+	if b {
+		mask = 1
+	}
+	return uintptr(mask)
+}
+
 // SimConnect golang interface
 type SimConnect struct {
 	hSimConnect uintptr
@@ -30,12 +38,12 @@ func NewSimConnect() (*SimConnect, error) {
 
 // MapClientEventToSimEvent SimConnect_MapClientEventToSimEvent(HANDLE hSimConnect, SIMCONNECT_CLIENT_EVENT_ID EventID, const char * EventName = "")
 func (sc *SimConnect) MapClientEventToSimEvent(EventID uint32, EventName string) error {
-	return errors.New("not implemented")
+	return sc.syscallSC.MapClientEventToSimEvent(sc.hSimConnect, uintptr(EventID), cChar(EventName))
 }
 
 // TransmitClientEvent SimConnect_TransmitClientEvent(HANDLE hSimConnect, SIMCONNECT_OBJECT_ID ObjectID, SIMCONNECT_CLIENT_EVENT_ID EventID, DWORD dwData, SIMCONNECT_NOTIFICATION_GROUP_ID GroupID, SIMCONNECT_EVENT_FLAG Flags);
-func (sc *SimConnect) TransmitClientEvent(ObjectID uint32, EventID uint32, dwData uint32, GroupID uint32, Flags uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) TransmitClientEvent(ObjectID uint32, EventID uint32, dwData int, GroupID GroupPriority, Flags EventFlag) error {
+	return sc.syscallSC.TransmitClientEvent(sc.hSimConnect, uintptr(ObjectID), uintptr(EventID), uintptr(dwData), uintptr(GroupID), uintptr(Flags))
 }
 
 // SetSystemEventState SimConnect_SetSystemEventState(HANDLE hSimConnect, SIMCONNECT_CLIENT_EVENT_ID EventID, SIMCONNECT_STATE dwState);
@@ -44,8 +52,8 @@ func (sc *SimConnect) SetSystemEventState(EventID uint32, dwState uint32) error 
 }
 
 // AddClientEventToNotificationGroup SimConnect_AddClientEventToNotificationGroup(HANDLE hSimConnect, SIMCONNECT_NOTIFICATION_GROUP_ID GroupID, SIMCONNECT_CLIENT_EVENT_ID EventID, BOOL bMaskable = FALSE);
-func (sc *SimConnect) AddClientEventToNotificationGroup(GroupID uint32, EventID uint32, bMaskable uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) AddClientEventToNotificationGroup(GroupID uint32, EventID uint32, bMaskable bool) error {
+	return sc.syscallSC.AddClientEventToNotificationGroup(sc.hSimConnect, uintptr(GroupID), uintptr(EventID), cBool(bMaskable))
 }
 
 // RemoveClientEvent SimConnect_RemoveClientEvent(HANDLE hSimConnect, SIMCONNECT_NOTIFICATION_GROUP_ID GroupID, SIMCONNECT_CLIENT_EVENT_ID EventID);
@@ -54,7 +62,7 @@ func (sc *SimConnect) RemoveClientEvent(GroupID uint32, EventID uint32) error {
 }
 
 // SetNotificationGroupPriority SimConnect_SetNotificationGroupPriority(HANDLE hSimConnect, SIMCONNECT_NOTIFICATION_GROUP_ID GroupID, DWORD uPriority);
-func (sc *SimConnect) SetNotificationGroupPriority(GroupID uint32, uPriority uint32) error {
+func (sc *SimConnect) SetNotificationGroupPriority(GroupID uint32, uPriority GroupPriority) error {
 	return errors.New("not implemented")
 }
 
@@ -99,8 +107,9 @@ func (sc *SimConnect) SetDataOnSimObject(DefineID uint32, ObjectID uint32, Flags
 }
 
 // MapInputEventToClientEvent SimConnect_MapInputEventToClientEvent(HANDLE hSimConnect, SIMCONNECT_INPUT_GROUP_ID GroupID, const char * szInputDefinition, SIMCONNECT_CLIENT_EVENT_ID DownEventID, DWORD DownValue = 0, SIMCONNECT_CLIENT_EVENT_ID UpEventID = (SIMCONNECT_CLIENT_EVENT_ID)SIMCONNECT_UNUSED, DWORD UpValue = 0, BOOL bMaskable = FALSE);
-func (sc *SimConnect) MapInputEventToClientEvent(GroupID uint32, szInputDefinition string, DownEventID uint32, DownValue uint32, UpEventID uint32, UpValue uint32, bMaskable uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) MapInputEventToClientEvent(GroupID uint32, szInputDefinition string, DownEventID uint32, DownValue uint32, UpEventID uint32, UpValue uint32, bMaskable bool) error {
+
+	return sc.syscallSC.MapInputEventToClientEvent(sc.hSimConnect, uintptr(GroupID), cChar(szInputDefinition), uintptr(DownEventID), uintptr(DownValue), uintptr(UpEventID), uintptr(UpValue), cBool(bMaskable))
 }
 
 // SetInputGroupPriority SimConnect_SetInputGroupPriority(HANDLE hSimConnect, SIMCONNECT_INPUT_GROUP_ID GroupID, DWORD uPriority);
@@ -119,8 +128,8 @@ func (sc *SimConnect) ClearInputGroup(GroupID uint32) error {
 }
 
 // SetInputGroupState SimConnect_SetInputGroupState(HANDLE hSimConnect, SIMCONNECT_INPUT_GROUP_ID GroupID, DWORD dwState);
-func (sc *SimConnect) SetInputGroupState(GroupID uint32, dwState uint32) error {
-	return errors.New("not implemented")
+func (sc *SimConnect) SetInputGroupState(GroupID uint32, dwState SimConnectStat) error {
+	return sc.syscallSC.SetInputGroupState(sc.hSimConnect, uintptr(GroupID), uintptr(dwState))
 }
 
 // RequestReservedKey SimConnect_RequestReservedKey(HANDLE hSimConnect, SIMCONNECT_CLIENT_EVENT_ID EventID, const char * szKeyChoice1 = "", const char * szKeyChoice2 = "", const char * szKeyChoice3 = "");
@@ -129,8 +138,8 @@ func (sc *SimConnect) RequestReservedKey(EventID uint32, szKeyChoice1 string, sz
 }
 
 // SubscribeToSystemEvent SimConnect_SubscribeToSystemEvent(HANDLE hSimConnect, SIMCONNECT_CLIENT_EVENT_ID EventID, const char * SystemEventName);
-func (sc *SimConnect) SubscribeToSystemEvent(EventID uint32, SystemEventName string) error {
-	err := sc.syscallSC.SubscribeToSystemEvent(sc.hSimConnect, uintptr(EventID), cChar(SystemEventName))
+func (sc *SimConnect) SubscribeToSystemEvent(EventID uint32, SystemEventName SystemEvent) error {
+	err := sc.syscallSC.SubscribeToSystemEvent(sc.hSimConnect, uintptr(EventID), cChar(string(SystemEventName)))
 	return err
 }
 
@@ -378,9 +387,10 @@ func (sc *SimConnect) FlightPlanLoad(szFileName string) error {
 }
 
 // Text SimConnect_Text(HANDLE hSimConnect, SIMCONNECT_TEXT_TYPE type, float fTimeSeconds, SIMCONNECT_CLIENT_EVENT_ID EventID, DWORD cbUnitSize, void * pDataSet);
-func (sc *SimConnect) Text(t uint32, fTimeSeconds float32, EventID uint32, pDataSet []byte) error {
-	size := len(pDataSet)
-	return sc.syscallSC.Text(sc.hSimConnect, uintptr(t), uintptr(fTimeSeconds), uintptr(EventID), uintptr(size), uintptr(unsafe.Pointer(&pDataSet[0])))
+func (sc *SimConnect) Text(t uint32, fTimeSeconds float32, EventID uint32, pDataSet string) error {
+	str := convGoStringtoBytes(pDataSet)
+	size := len(str)
+	return sc.syscallSC.Text(sc.hSimConnect, uintptr(t), uintptr(fTimeSeconds), uintptr(EventID), uintptr(size), uintptr(unsafe.Pointer(&str[0])))
 }
 
 // SubscribeToFacilities SimConnect_SubscribeToFacilities(HANDLE hSimConnect, SIMCONNECT_FACILITY_LIST_TYPE type, SIMCONNECT_DATA_REQUEST_ID RequestID);

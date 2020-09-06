@@ -1,5 +1,7 @@
 package simconnect
 
+type GroupPriority int
+
 //Divers
 const (
 	MAX_PATH = 260
@@ -12,11 +14,11 @@ const (
 	SIMCONNECT_CLIENTDATA_MAX_SIZE = 8192 // maximum value for SimConnect_CreateClientData dwSize parameter
 
 	// Notification Group priority values
-	SIMCONNECT_GROUP_PRIORITY_HIGHEST          = 1          // highest priority
-	SIMCONNECT_GROUP_PRIORITY_HIGHEST_MASKABLE = 10000000   // highest priority that allows events to be masked
-	SIMCONNECT_GROUP_PRIORITY_STANDARD         = 1900000000 // standard priority
-	SIMCONNECT_GROUP_PRIORITY_DEFAULT          = 2000000000 // default priority
-	SIMCONNECT_GROUP_PRIORITY_LOWEST           = 4000000000 // priorities lower than this will be ignored
+	SIMCONNECT_GROUP_PRIORITY_HIGHEST          GroupPriority = 1          // highest priority
+	SIMCONNECT_GROUP_PRIORITY_HIGHEST_MASKABLE GroupPriority = 10000000   // highest priority that allows events to be masked
+	SIMCONNECT_GROUP_PRIORITY_STANDARD         GroupPriority = 1900000000 // standard priority
+	SIMCONNECT_GROUP_PRIORITY_DEFAULT          GroupPriority = 2000000000 // default priority
+	SIMCONNECT_GROUP_PRIORITY_LOWEST           GroupPriority = 4000000000 // priorities lower than this will be ignored
 
 	//Weather observations Metar strings
 	MAX_METAR_LENGTH = 2000
@@ -146,8 +148,10 @@ const (
 	SIMCONNECT_SIMOBJECT_TYPE_GROUND
 )
 
+type SimConnectStat int
+
 const (
-	SIMCONNECT_STATE_OFF = iota
+	SIMCONNECT_STATE_OFF SimConnectStat = iota
 	SIMCONNECT_STATE_ON
 )
 
@@ -249,12 +253,14 @@ const (
 	SIMCONNECT_WAYPOINT_WRAP_TO_FIRST          = 0x00400000 // Wrap around back to first waypoint. Only valid on last waypoint.
 )
 
+type EventFlag int
+
 // SIMCONNECT_EVENT_FLAG
 const (
-	SIMCONNECT_EVENT_FLAG_DEFAULT             = iota
-	SIMCONNECT_EVENT_FLAG_FAST_REPEAT_TIMER                // set event repeat timer to simulate fast repeat
-	SIMCONNECT_EVENT_FLAG_SLOW_REPEAT_TIMER                // set event repeat timer to simulate slow repeat
-	SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY = 0x00000010 // interpret GroupID parameter as priority value
+	SIMCONNECT_EVENT_FLAG_DEFAULT             EventFlag = iota
+	SIMCONNECT_EVENT_FLAG_FAST_REPEAT_TIMER                          // set event repeat timer to simulate fast repeat
+	SIMCONNECT_EVENT_FLAG_SLOW_REPEAT_TIMER                          // set event repeat timer to simulate slow repeat
+	SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY EventFlag = 0x00000010 // interpret GroupID parameter as priority value
 )
 
 // SIMCONNECT_DATA_REQUEST_FLAG
