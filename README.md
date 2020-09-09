@@ -8,7 +8,7 @@ With this library you can in simulator:
 - Read SimVar. (ex: Altitude, Longitude, Latitude, AP master status, Fuel, Engine...)
 - Write SimVar. All the SimVar have not a possibility to be written show SimVar.Settable
 - Send SimEvent for change Throttle or other
-- Receive system event. _Not all implemented_ (ex: When the aircraft crash)
+- Receive system event (ex: When the aircraft crash). _Not all implemented_ 
 - Show text in the screen on the simulator
 
 ## A simple example of how to use this library
@@ -51,9 +51,7 @@ func main() {
 			for _, simVar := range result {
 				var f float64
 				var err error
-				if simVar.Unit == "Radians" {
-					f, err = simVar.GetDegrees()
-				} else if strings.Contains(string(simVar.Unit), "String") {
+				if strings.Contains(string(simVar.Unit), "String") {
 					log.Printf("%s : %#v\n", simVar.Name, simVar.GetString())
 				} else if simVar.Unit == "SIMCONNECT_DATA_LATLONALT" {
 					data, _ := simVar.GetDataLatLonAlt()
