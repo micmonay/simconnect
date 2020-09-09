@@ -1,4 +1,4 @@
-// Package simconnect is a binding for FS2020 ✈️ in GO
+// Package simconnect is a binding for FS2020 ✈️ in GO.
 // Please see EasySimConnect for best use
 package simconnect
 

@@ -102,6 +102,7 @@ func (esc *EasySimConnect) runDispatch() {
 		err := esc.sc.GetNextDispatch(&ppdata, &pcbData)
 		//créer un buffer en copy les data ppdata avec longueur pcbdata et utiliser le buffer pour la suite
 		if err != nil {
+			time.Sleep(esc.delay / 2)
 			continue
 		}
 		buf, err := convCBytesToGoBytes(ppdata, int(pcbData))
