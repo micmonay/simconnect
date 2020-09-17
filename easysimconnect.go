@@ -65,6 +65,11 @@ func (esc *EasySimConnect) Close() <-chan bool {
 	return esc.cOpen
 }
 
+// IsAlive return true if connected
+func (esc *EasySimConnect) IsAlive() bool {
+	return esc.alive
+}
+
 // SetDelay Select delay update SimVar and
 func (esc *EasySimConnect) SetDelay(t time.Duration) {
 	esc.delay = t
@@ -124,6 +129,10 @@ func (esc *EasySimConnect) runDispatch() {
 				continue
 			}
 			cb(recv)
+		case SIMCONNECT_RECV_ID_QUIT:
+			esc.sc.Close()
+			esc.cOpen <- false
+			return
 		case SIMCONNECT_RECV_ID_EVENT_FILENAME:
 			recv := *(*SIMCONNECT_RECV_EVENT_FILENAME)(ppdata)
 			esc.listEvent[recv.uEventID](recv)
@@ -251,6 +260,16 @@ func (esc *EasySimConnect) ConnectSysEventPaused() <-chan bool {
 	c := make(chan bool)
 	esc.connectSysEvent(SystemEventPaused, func(data interface{}) {
 		c <- true
+	})
+	return c
+}
+
+// ConnectSysEventSim Request a notification when Sim start and stop.
+func (esc *EasySimConnect) ConnectSysEventSim() <-chan bool {
+	c := make(chan bool)
+	esc.connectSysEvent(SystemEventSim, func(data interface{}) {
+		event := data.(SIMCONNECT_RECV_EVENT)
+		c <- event.dwData > 0
 	})
 	return c
 }

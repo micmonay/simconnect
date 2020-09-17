@@ -187,6 +187,14 @@ func (s *SimVar) GetInt() (int, error) {
 	return int(f), nil
 }
 
+func (s *SimVar) GetBool() (bool, error) {
+	f, err := s.GetFloat64()
+	if err != nil {
+		return false, err
+	}
+	return f > 0, nil
+}
+
 func (s *SimVar) GetDegrees() (float64, error) {
 	f, err := s.GetFloat64()
 	if err != nil {
