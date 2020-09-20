@@ -73,6 +73,9 @@ func SimVarGenerator(iFace interface{}) ([]SimVar, error) {
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
 		tag := f.Tag.Get("sim")
+		if tag == "" {
+			continue
+		}
 		index := 0
 		if strings.Contains(tag, ":") {
 			v := strings.Split(tag, ":")
@@ -106,6 +109,9 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
 		tag := f.Tag.Get("sim")
+		if tag == "" {
+			continue
+		}
 		logWarm := func(i int64, err error) {
 			logrus.Warn("#"+strconv.FormatInt(i, 10), "ignored field in AssignInterface", f.Name, " tag:", tag, "error:", err)
 		}

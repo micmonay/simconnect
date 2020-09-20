@@ -234,7 +234,7 @@ func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) <-chan []
 	return c
 }
 
-// ConnectInterfaceToSimVarObject return a chan. This chan return interface when updating
+// ConnectInterfaceToSimVar return a chan. This chan return interface when updating
 func (esc *EasySimConnect) ConnectInterfaceToSimVar(iFace interface{}) (<-chan interface{}, error) {
 	simVars, err := SimVarGenerator(iFace)
 	if err != nil {
