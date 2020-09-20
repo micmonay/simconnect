@@ -1,6 +1,7 @@
 package simconnect
 
 import (
+	"fmt"
 	"time"
 	"unsafe"
 
@@ -31,6 +32,7 @@ type EasySimConnect struct {
 	logLevel     EasySimConnectLogLevel
 	cOpen        chan bool
 	alive        bool
+	cException   chan *SIMCONNECT_RECV_EXCEPTION
 }
 
 // NewEasySimConnect create instance of EasySimConnect
@@ -51,6 +53,7 @@ func NewEasySimConnect() (*EasySimConnect, error) {
 		LogNo,
 		make(chan bool, 1),
 		true,
+		make(chan *SIMCONNECT_RECV_EXCEPTION),
 	}, nil
 }
 
@@ -77,7 +80,7 @@ func (esc *EasySimConnect) SetDelay(t time.Duration) {
 
 // Connect to sim and run dispatch or return error
 func (esc *EasySimConnect) Connect(appName string) (<-chan bool, error) {
-	err := esc.sc.Open(appName)
+	err, _ := esc.sc.Open(appName)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +107,7 @@ func (esc *EasySimConnect) runDispatch() {
 	for esc.alive {
 		var ppdata unsafe.Pointer
 		var pcbData uint32
-		err := esc.sc.GetNextDispatch(&ppdata, &pcbData)
+		err, _ := esc.sc.GetNextDispatch(&ppdata, &pcbData)
 		//créer un buffer en copy les data ppdata avec longueur pcbdata et utiliser le buffer pour la suite
 		if err != nil {
 			time.Sleep(esc.delay / 2)
@@ -137,8 +140,12 @@ func (esc *EasySimConnect) runDispatch() {
 			recv := *(*SIMCONNECT_RECV_EVENT_FILENAME)(ppdata)
 			esc.listEvent[recv.uEventID](recv)
 		case SIMCONNECT_RECV_ID_EXCEPTION:
-			recv := *(*SIMCONNECT_RECV_EXCEPTION)(ppdata)
-			esc.logf(LogInfo, "SimConnect Exception : %s %#v\n", getTextException(recv.dwException), recv)
+			recv := (*SIMCONNECT_RECV_EXCEPTION)(ppdata)
+			select {
+			case esc.cException <- recv:
+			case <-time.After(100 * time.Millisecond):
+			}
+			esc.logf(LogInfo, "SimConnect Exception : %s %#v\n", getTextException(recv.dwException), *recv)
 		case SIMCONNECT_RECV_ID_SIMOBJECT_DATA, SIMCONNECT_RECV_ID_SIMOBJECT_DATA_BYTYPE:
 			recv := *(*SIMCONNECT_RECV_SIMOBJECT_DATA)(ppdata)
 			if len(esc.listSimVar) < int(recv.dwDefineID) {
@@ -179,15 +186,32 @@ func (esc *EasySimConnect) runDispatch() {
 	esc.cOpen <- false
 }
 
-// ConnectToSimVarObject return a chan. This chan return an array when updating they SimVars in order of argument of this function
-func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) chan []SimVar {
+func (esc *EasySimConnect) ConnectToSimVar(listSimVar ...SimVar) (<-chan []SimVar, error) {
 	defineID := uint32(len(esc.listSimVar))
 	addedSimVar := make([]SimVar, 0)
 	for i, simVar := range listSimVar {
-		err := esc.sc.AddToDataDefinition(defineID, simVar.getNameForDataDefinition(), simVar.getUnitForDataDefinition(), simVar.GetDatumType(), 0, uint32(i))
+		err, id := esc.sc.AddToDataDefinition(defineID, simVar.getNameForDataDefinition(), simVar.getUnitForDataDefinition(), simVar.GetDatumType(), 0, uint32(i))
 		if err != nil {
 			esc.logf(LogInfo, "Error add SimVar ( %s ) in AddToDataDefinition error : %#v", simVar.Name, err)
-			continue
+			return nil, fmt.Errorf(
+				"Error add SimVar ( %s ) in AddToDataDefinition error : %#v",
+				simVar.Name,
+				err,
+			)
+		}
+		var exception *SIMCONNECT_RECV_EXCEPTION
+		select {
+		case exception = <-esc.cException:
+		case <-time.After(100 * time.Millisecond):
+		}
+		if exception != nil && exception.dwSendID == id {
+			return nil, fmt.Errorf(
+				"Error add SimVar ( %s ) in AddToDataDefinition : %s. Please control name ( %s ) and unit ( %s )",
+				simVar.Name,
+				getTextException(exception.dwException),
+				simVar.Name,
+				simVar.Unit,
+			)
 		}
 		addedSimVar = append(addedSimVar, simVar)
 	}
@@ -195,24 +219,55 @@ func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) chan []Si
 	chanSimVar := make(chan []SimVar)
 	esc.listChan = append(esc.listChan, chanSimVar)
 	esc.sc.RequestDataOnSimObjectType(uint32(0), defineID, uint32(0), uint32(0))
-	return chanSimVar
+	return chanSimVar, nil
+}
+
+// ConnectToSimVarObject return a chan. This chan return an array when updating they SimVars in order of argument of this function
+//
+// Deprecated: Use ConnectToSimVar instead.
+func (esc *EasySimConnect) ConnectToSimVarObject(listSimVar ...SimVar) <-chan []SimVar {
+	c, err := esc.ConnectToSimVar(listSimVar...)
+	if err != nil {
+		esc.logf(LogError, err.Error())
+		return make(<-chan []SimVar)
+	}
+	return c
+}
+
+// ConnectInterfaceToSimVarObject return a chan. This chan return interface when updating
+func (esc *EasySimConnect) ConnectInterfaceToSimVar(iFace interface{}) (<-chan interface{}, error) {
+	simVars, err := SimVarGenerator(iFace)
+	if err != nil {
+		return nil, err
+	}
+	csimVars, err := esc.ConnectToSimVar(simVars...)
+	if err != nil {
+		return nil, err
+	}
+	cInterface := make(chan interface{})
+	go func() {
+		for {
+			cInterface <- SimVarAssignInterface(iFace, <-csimVars)
+		}
+	}()
+	return cInterface, nil
 }
 
 // SetSimObject edit the SimVar in the simulator
 func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 	defineID := uint32(1 << 30)
-	err := esc.sc.AddToDataDefinition(defineID, simVar.Name, simVar.getUnitForDataDefinition(), simVar.GetDatumType(), 0, 0)
+	err, _ := esc.sc.AddToDataDefinition(defineID, simVar.Name, simVar.getUnitForDataDefinition(), simVar.GetDatumType(), 0, 0)
 	if err != nil {
 		esc.logf(LogInfo, "Error add SimVar ( %s ) in AddToDataDefinition error : %#v", simVar.Name, err)
 		return
 	}
 	//esc.listSimVar = append(esc.listSimVar, []*SimVar{&simVar})
-	err = esc.sc.SetDataOnSimObject(defineID, SIMCONNECT_OBJECT_ID_USER, 0, 0, uint32(len(simVar.data)), simVar.data)
+	err, _ = esc.sc.SetDataOnSimObject(defineID, SIMCONNECT_OBJECT_ID_USER, 0, 0, uint32(len(simVar.data)), simVar.data)
 	if err != nil {
 		esc.logf(LogInfo, "Error add SimVar ( %s ) in SetDataOnSimObject error : %#v", simVar.Name, err)
 		return
 	}
-	err = esc.sc.ClearDataDefinition(uint32(defineID))
+	err, _ = esc.sc.ClearDataDefinition(uint32(defineID))
 	if err != nil {
 		esc.logf(LogInfo, "Error add SimVar ( %s ) in ClearDataDefinition error : %#v", simVar.Name, err)
 		return
@@ -221,7 +276,7 @@ func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 func (esc *EasySimConnect) connectSysEvent(name SystemEvent, cb func(interface{})) {
 	esc.indexEvent++
 	esc.listEvent[esc.indexEvent] = cb
-	err := esc.sc.SubscribeToSystemEvent(uint32(esc.indexEvent), name)
+	err, _ := esc.sc.SubscribeToSystemEvent(uint32(esc.indexEvent), name)
 	if err != nil {
 		esc.logf(LogInfo, "Error connect to Event %s in ConnectSysEventCrashed error : %#v", name, err)
 	}
@@ -332,7 +387,8 @@ func (esc *EasySimConnect) ShowText(str string, time float32, color PrintColor) 
 	esc.listEvent[esc.indexEvent] = func(data interface{}) {
 		cReturn <- int(data.(SIMCONNECT_RECV_EVENT).dwData)
 	}
-	return cReturn, esc.sc.Text(uint32(color), time, esc.indexEvent, str)
+	err, _ := esc.sc.Text(uint32(color), time, esc.indexEvent, str)
+	return cReturn, err
 }
 func (esc *EasySimConnect) runSimEvent(simEvent SimEvent) {
 	esc.sc.TransmitClientEvent(SIMCONNECT_OBJECT_ID_USER, simEvent.eventID, simEvent.Value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY)

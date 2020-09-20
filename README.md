@@ -35,7 +35,7 @@ func main() {
 		panic(err)
 	}
 	<-c // Wait connection confirmation
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarPlaneAltitude(),
 		sim.SimVarPlaneLatitude(sim.UnitDegrees), // You can force the units
 		sim.SimVarPlaneLongitude(),
@@ -43,7 +43,16 @@ func main() {
 		sim.SimVarGeneralEngRpm(1),
 		sim.SimVarAutopilotMaster(),
 	)
-	sc.SetDelay(1 * time.Second)
+	if err != nil {
+		panic(err)
+	}
+	cSimStatus := sc.ConnectSysEventSim()
+	//wait sim start
+	for {
+		if <-cSimStatus {
+			break
+		}
+	}
 	crashed := sc.ConnectSysEventCrashed()
 	for {
 		select {

@@ -177,3 +177,29 @@ func Example_simEvent() {
 	<-sc.Close() // wait close confirmation
 	// Output:
 }
+
+type ExampleInterface struct {
+	PlaneAltitude            float64 `sim:"PLANE ALTITUDE" simUnit:"Feet"`
+	PlaneLatitude            float64 `sim:"PLANE LATITUDE"`
+	PlaneLongitude           float64 `sim:"PLANE LONGITUDE" simUnit:"Degrees"`
+	IndicatedAltitude        float64 `sim:"INDICATED ALTITUDE"`
+	AutopilotAltitudeLockVar float64 `sim:"AUTOPILOT ALTITUDE LOCK VAR"`
+	SimVarAutopilotMaster    bool    `sim:"GENERAL ENG RPM:1"`
+	PlaneName                string  `sim:"TITLE"`
+}
+
+func Example_interfaceSimVar() {
+	sc := connect()
+	cInterface, err := sc.ConnectInterfaceToSimVar(ExampleInterface{})
+	if err != nil {
+		panic(err)
+	}
+	iFace, ok := (<-cInterface).(ExampleInterface)
+	if ok {
+		log.Printf("%#v", iFace)
+	} else {
+		log.Fatalln("interface error in Example_interfaceSimVar")
+	}
+	<-sc.Close()
+	// Output:
+}
