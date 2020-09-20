@@ -18,13 +18,18 @@ func connect() *sim.EasySimConnect {
 		panic(err)
 	}
 	<-c // wait connection confirmation
+	for {
+		if <-sc.ConnectSysEventSim() {
+			break // wait sim start
+		}
+	}
 	return sc
 }
 
 // ExampleGetSimVar this example show how to get SimVar with Easysim
 func Example_getSimVar() {
 	sc := connect()
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarPlaneAltitude(),
 		sim.SimVarPlaneLatitude(sim.UnitDegrees), // you can force the units
 		sim.SimVarPlaneLongitude(),
@@ -32,6 +37,9 @@ func Example_getSimVar() {
 		sim.SimVarAutopilotAltitudeLockVar(),
 		sim.SimVarAutopilotMaster(),
 	)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
 		for _, simVar := range result {
@@ -50,10 +58,13 @@ func Example_getSimVar() {
 
 func Example_getSimVarWithIndex() {
 	sc := connect()
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarGeneralEngRpm(1),
 		sim.SimVarTransponderCode(1),
 	)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
 		for _, simVar := range result {
@@ -91,9 +102,12 @@ func Example_setSimVar() {
 
 func Example_getLatLonAlt() {
 	sc := connect()
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarStructLatlonalt(),
 	)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
 		for _, simVar := range result {
@@ -111,9 +125,12 @@ func Example_getLatLonAlt() {
 
 func Example_getXYZ() {
 	sc := connect()
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarEyepointPosition(),
 	)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
 		for _, simVar := range result {
@@ -131,10 +148,13 @@ func Example_getXYZ() {
 
 func Example_getString() {
 	sc := connect()
-	cSimVar := sc.ConnectToSimVarObject(
+	cSimVar, err := sc.ConnectToSimVar(
 		sim.SimVarTitle(),
 		sim.SimVarCategory(),
 	)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	for i := 0; i < 1; i++ {
 		result := <-cSimVar
 		for _, simVar := range result {

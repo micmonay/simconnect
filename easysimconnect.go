@@ -186,6 +186,7 @@ func (esc *EasySimConnect) runDispatch() {
 	esc.cOpen <- false
 }
 
+// ConnectToSimVar return a chan. This chan return an array when updating they SimVars in order of argument of this function
 func (esc *EasySimConnect) ConnectToSimVar(listSimVar ...SimVar) (<-chan []SimVar, error) {
 	defineID := uint32(len(esc.listSimVar))
 	addedSimVar := make([]SimVar, 0)
