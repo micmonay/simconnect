@@ -105,7 +105,7 @@ func Example_iFaceSetSimVar() {
 		PlaneAltitude:  10000.0,
 		Speed:          150.0,
 	}
-	sc.SetInterfaceInSimObject(iFace)
+	sc.SetSimVarInterfaceInSim(iFace)
 	<-sc.Close() // wait close confirmation
 	// NOEXEC Output:
 }

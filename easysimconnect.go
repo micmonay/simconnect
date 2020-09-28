@@ -254,7 +254,7 @@ func (esc *EasySimConnect) ConnectInterfaceToSimVar(iFace interface{}) (<-chan i
 	return cInterface, nil
 }
 
-func (esc *EasySimConnect) SetInterfaceInSimObject(iFace interface{}) error {
+func (esc *EasySimConnect) SetSimVarInterfaceInSim(iFace interface{}) error {
 	simvars, err := SimVarGenerator(iFace)
 	if err != nil {
 		return err
