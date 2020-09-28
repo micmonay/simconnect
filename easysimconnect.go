@@ -254,6 +254,18 @@ func (esc *EasySimConnect) ConnectInterfaceToSimVar(iFace interface{}) (<-chan i
 	return cInterface, nil
 }
 
+func (esc *EasySimConnect) SetInterfaceInSimObject(iFace interface{}) error {
+	simvars, err := SimVarGenerator(iFace)
+	if err != nil {
+		return err
+	}
+	InterfaceAssignSimVar(simvars, iFace)
+	for _, simvar := range simvars {
+		esc.SetSimObject(simvar)
+	}
+	return nil
+}
+
 // SetSimObject edit the SimVar in the simulator
 func (esc *EasySimConnect) SetSimObject(simVar SimVar) {
 	defineID := uint32(1 << 30)

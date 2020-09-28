@@ -89,6 +89,27 @@ func Example_getSimVarWithIndex() {
 	// Output:
 }
 
+type ExampleSetSimVar struct {
+	PlaneAltitude  float64 `sim:"PLANE ALTITUDE" simUnit:"Feet"`
+	PlaneLatitude  float64 `sim:"PLANE LATITUDE" simUnit:"Degrees"`
+	PlaneLongitude float64 `sim:"PLANE LONGITUDE" simUnit:"Degrees"`
+	Speed          float64 `sim:"AIRSPEED INDICATED" simUnit:"Knots"`
+}
+
+//Example_iFaceSetSimVar Example how to use interface for assign value in simulator actualy support only float64
+func Example_iFaceSetSimVar() {
+	sc := connect()
+	iFace := ExampleSetSimVar{
+		PlaneLatitude:  46.2730077,
+		PlaneLongitude: 6.1324663,
+		PlaneAltitude:  10000.0,
+		Speed:          150.0,
+	}
+	sc.SetInterfaceInSimObject(iFace)
+	<-sc.Close() // wait close confirmation
+	// NOEXEC Output:
+}
+
 //
 func Example_setSimVar() {
 	sc := connect()

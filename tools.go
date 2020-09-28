@@ -99,6 +99,16 @@ func SimVarGenerator(iFace interface{}) ([]SimVar, error) {
 	return simVars, nil
 }
 
+func InterfaceAssignSimVar(listSimVar []SimVar, iFace interface{}) {
+	rt := reflect.ValueOf(iFace)
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		switch field.Type().Name() {
+		case "float64":
+			listSimVar[i].SetFloat64(field.Float())
+		}
+	}
+}
 func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 	rt := reflect.TypeOf(iFace)
 	if rt.Kind() != reflect.Struct {
@@ -130,7 +140,6 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 		switch typeValue {
 		case "string":
 			reflectValue.SetString(simVar.GetString())
-			break
 		case "float64":
 			f, err := simVar.GetFloat64()
 			if err != nil {
@@ -138,7 +147,6 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 				continue
 			}
 			reflectValue.SetFloat(f)
-			break
 		case "bool":
 			b, err := simVar.GetBool()
 			if err != nil {
@@ -146,7 +154,6 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 				continue
 			}
 			reflectValue.SetBool(b)
-			break
 		case "int":
 			i, err := simVar.GetInt()
 			if err != nil {
@@ -154,7 +161,6 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 				continue
 			}
 			reflectValue.SetInt(int64(i))
-			break
 		case "*SIMCONNECT_DATA_XYZ":
 			data, err := simVar.GetDataXYZ()
 			if err != nil {
@@ -178,7 +184,6 @@ func SimVarAssignInterface(iFace interface{}, listSimVar []SimVar) interface{} {
 			reflectValue.Set(reflect.ValueOf(data))
 		default:
 			logrus.Infoln("Type :", reflectValue.Type(), "?")
-			break
 		}
 	}
 	return reflectElem.Interface()
